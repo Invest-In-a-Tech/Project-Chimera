@@ -1,0 +1,14 @@
+# Main dependencies
+trade29-scpy==1.0.2
+
+# Dependencies of trade29-scpy
+fastavro==1.12.0
+pandas==2.3.2
+pywin32==311
+
+# Indirect dependencies (automatically installed)
+numpy==2.3.3
+python-dateutil==2.9.0.post0
+pytz==2025.2
+six==1.17.0
+tzdata==2025.2
