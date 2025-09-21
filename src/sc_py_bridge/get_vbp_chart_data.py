@@ -49,9 +49,11 @@ class GetVbpData:
     """
     Class to fetch Volume by Price (VBP) chart data using a Sierra Chart bridge.
     """
-
+    # Initialize the SCBridge instance for data subscription
     bridge: SCBridge
+    # Set columns to drop
     columns_to_drop: List[str]
+    # Number of historical bars to request
     historical_bars: int
 
     def __init__(
@@ -94,7 +96,7 @@ class GetVbpData:
         ]
 
         vbp_chart_data_response = self.bridge.get_chart_data(
-            key='vbpKey',
+            key='xx',
             include_volume_by_price=True,
             historical_bars=self.historical_bars,
             include_live_bar=True,
@@ -172,3 +174,9 @@ class GetVbpData:
         This method ensures that the SCBridge connection is properly closed.
         """
         self.bridge.stop()
+
+# # Example usage:
+# if __name__ == "__main__":
+#     vbp_chart_data_processor = GetVbpData()
+#     vbp_chart_data_df = vbp_chart_data_processor.get_vbp_chart_data()
+#     print(vbp_chart_data_df.tail())
