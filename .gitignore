@@ -205,3 +205,29 @@ secrets.json
 # Project specific
 # Add any project-specific files or directories to ignore here
 *.tar.gz
+
+# Data artifacts (prevent large data from being committed)
+# Ignore everything under data/, but allow placeholders and docs
+data/**
+!data/.gitkeep
+!data/README.md
+
+# Common data file formats (repo-wide)
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.arrow
+*.orc
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.npz
+*.npy
+*.avro
+*.jsonl
+*.zip
+*.gz
+*.bz2
+*.xz

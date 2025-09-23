@@ -30,7 +30,7 @@ Example:
     vbp_fetcher.stop_bridge()
     ```
 
-Author: Project Chimera
+Author: Roy Williams
 Version: 1.0.0
 """
 
@@ -58,20 +58,24 @@ class GetVbpData:
     """
     Class to fetch Volume by Price (VBP) chart data using a Sierra Chart bridge.
     """
-
     # SCBridge instance used to communicate with Sierra Chart
     bridge: SCBridge
+
     # Columns to drop from the final DataFrame (cleanup step)
     columns_to_drop: List[str]
+
     # Number of historical bars to request from Sierra Chart
     historical_bars: int
 
     def __init__(
         self,
+
         # Optional externally-managed SCBridge instance; if not provided, create one
         bridge: Optional[SCBridge] = None,
+
         # Optional list of column names to remove from the final DataFrame
         columns_to_drop: Optional[List[str]] = None,
+
         # How many historical bars to include in the request (default 50)
         historical_bars: int = 50
     ) -> None:
@@ -85,10 +89,13 @@ class GetVbpData:
         """
         # Startup message for tracing object lifecycle
         logger.debug("Initializing GetVbpData class")
+
         # Use provided bridge or create a new SCBridge to talk to Sierra Chart
         self.bridge = bridge if bridge is not None else SCBridge()
+
         # Use provided drop-list or default to removing the 'IsBarClosed' helper column
         self.columns_to_drop = columns_to_drop if columns_to_drop is not None else ['IsBarClosed']
+
         # Store the number of bars to request for later calls
         self.historical_bars = historical_bars
 
@@ -117,14 +124,19 @@ class GetVbpData:
         # Issue the request to Sierra Chart via the bridge with VBP enabled
         vbp_chart_data_response = self.bridge.get_chart_data(
             key='vbpKey',
+
             # Include Volume by Price data in the payload
             include_volume_by_price=True,
+
             # Request this many historical bars
             historical_bars=self.historical_bars,
+
             # Include the in-progress live bar for the latest interval
             include_live_bar=True,
+
             # Include base data series (open/high/low/close/volume)
             base_data=price_data_to_fetch,
+
             # Include study subgraphs (e.g., RVOL, Today OHLC)
             sg_data=sg_to_fetch
         )
@@ -169,17 +181,22 @@ class GetVbpData:
 
         # Rename the key column to 'DateTime' to reflect its meaning
         vbp_combined.rename(columns={'index': 'DateTime'}, inplace=True)
+
         # Sort rows first by bar time then by price within each bar
         vbp_combined = vbp_combined.sort_values(['DateTime', 'Price'])
+
         # Ensure DateTime column is a proper datetime dtype
         vbp_combined['DateTime'] = pd.to_datetime(vbp_combined['DateTime'])
+
         # Use DateTime as the index for easy time-based joins/queries
         vbp_combined.set_index('DateTime', inplace=True)
 
         # Bring the non-VBP columns back together with the exploded VBP rows
         combined_df = df.drop(columns=['VolumeByPrice']).join(vbp_combined, how='outer')
+
         # Remove helper columns if present (ignore if missing)
         combined_df.drop(columns=self.columns_to_drop, inplace=True, errors='ignore')
+
         # Normalize column names to common conventions used elsewhere in the project
         combined_df.rename(columns={
             'Last': 'Close',
@@ -204,8 +221,10 @@ class GetVbpData:
         """
         # Fetch the raw chart data (including VBP) from Sierra Chart
         vbp_chart_data_df = self.fetch_vbp_chart_data()
+
         # Transform the raw data into a flattened, analysis-friendly DataFrame
         processed_vbp_chart_data = self.process_vbp_chart_data(vbp_chart_data_df)
+
         # Return the processed dataset
         return processed_vbp_chart_data
 
