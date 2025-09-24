@@ -46,10 +46,17 @@ import logging
 # Third-party imports
 # Import pandas for DataFrame manipulation and analysis
 import pandas as pd
-
-# Local imports
 # Import Sierra Chart bridge types and constants for requesting data
 from trade29.sc import SCBridge, SubgraphQuery, constants
+
+# Configure pandas display options to show full DataFrame
+pd.set_option('display.max_rows', None)  # Show all rows
+pd.set_option('display.max_columns', None)  # Show all columns
+pd.set_option('display.width', None)  # Don't wrap columns
+pd.set_option('display.max_colwidth', None)  # Show full column content
+
+# Local imports
+# (No local imports currently)
 
 # Module-level logger
 logger = logging.getLogger(__name__)
@@ -118,7 +125,8 @@ class GetVbpData:
         # Subgraph studies to include (study id and subgraph indices)
         sg_to_fetch = [
             SubgraphQuery(study_id=6, subgraphs=[1]),           # Relative Volume
-            SubgraphQuery(study_id=4, subgraphs=[1, 2, 3])      # Daily High, Low, Open
+            SubgraphQuery(study_id=4, subgraphs=[1, 2, 3]),      # Daily High, Low, Open
+            SubgraphQuery(study_id=9, subgraphs=[1, 2, 3, 4]),  # Large Tradess
         ]
 
         # Issue the request to Sierra Chart via the bridge with VBP enabled
@@ -197,13 +205,18 @@ class GetVbpData:
         # Remove helper columns if present (ignore if missing)
         combined_df.drop(columns=self.columns_to_drop, inplace=True, errors='ignore')
 
-        # Normalize column names to common conventions used elsewhere in the project
+        # Normalize column names to common conventions used elsewhere in the project.
+        # In other words, map the bridge's default column names to more familiar ones.
         combined_df.rename(columns={
             'Last': 'Close',
             'ID6.SG1': 'RVOL',
             'ID4.SG1': 'TodayOpen',
             'ID4.SG2': 'TodayHigh',
             'ID4.SG3': 'TodayLow',
+            'ID9.SG1': 'LTMaxVol',
+            'ID9.SG2': 'LTTotalVol',
+            'ID9.SG3': 'LTBidVol',
+            'ID9.SG4': 'LTAskVol'
         }, inplace=True)
 
         # Return the fully processed DataFrame
@@ -240,5 +253,12 @@ class GetVbpData:
 # # Example usage:
 # vbp_chart_data_processor = GetVbpData()
 # vbp_chart_data_df = vbp_chart_data_processor.get_vbp_chart_data()
-# print(vbp_chart_data_df)
+
+# # Print the full DataFrame with all rows and columns visible
+# # print(vbp_chart_data_df)
+
+# # Use context manager for one-time full display
+# with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+#     print(vbp_chart_data_df)
+
 # # vbp_chart_data_processor.stop_bridge()
