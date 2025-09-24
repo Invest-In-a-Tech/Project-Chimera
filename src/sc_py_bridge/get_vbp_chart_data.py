@@ -241,7 +241,6 @@ class GetVbpData:
         # Return the processed dataset
         return processed_df
 
-
     def stop_bridge(self) -> None:
         """
         Stops the SCBridge object.
@@ -251,15 +250,15 @@ class GetVbpData:
         # Ask the bridge to terminate the connection/session cleanly
         self.bridge.stop()
 
-if __name__ == "__main__":
-    # Example usage when running this module as a script
-    vbp_data = GetVbpData()
-    result_df = vbp_data.get_vbp_chart_data()
+# if __name__ == "__main__":
+#     # Example usage when running this module as a script
+#     vbp_data = GetVbpData()
+#     result_df = vbp_data.get_vbp_chart_data()
 
-    # # Print the full DataFrame with all rows and columns visible
-    # # logger.debug(f"VBP chart data:\n{result_df}")
+#     # Print the full DataFrame with all rows and columns visible
+#     # logger.debug(f"VBP chart data:\n{result_df}")
 
-    # # Use context manager for one-time full display
-    # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-    #     logger.debug(f"VBP chart data (full display):\n{result_df}")
-    # # vbp_data.stop_bridge()
+#     # Use context manager for one-time full display
+#     with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+#         logger.debug(f"VBP chart data (full display):\n{result_df}")
+#     # vbp_data.stop_bridge()
