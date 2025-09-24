@@ -26,7 +26,7 @@ Example:
     try:
         # Fetch the next available update and process it
         vbp_update_df = subscriber.get_subscribed_vbp_chart_data()
-        print(vbp_update_df.tail(10))
+        logger.debug(f"VBP update (last 10 rows):\n{vbp_update_df.tail(10)}")
     finally:
         # Clean up connection
         subscriber.stop_bridge()
@@ -274,7 +274,7 @@ class SubscribeToVbpChartData:
         This method ensures that the SCBridge connection is properly closed.
         """
         # Ask the bridge to terminate the connection/session cleanly
-        self.bridge.stop()     
+        self.bridge.stop()
 
 # # Usage example
 # if __name__ == '__main__':
@@ -285,9 +285,9 @@ class SubscribeToVbpChartData:
 #         while True:
 #             vbp_chart_data_df = subscribe_to_chart_data.get_subscribed_vbp_chart_data()
 #             if vbp_chart_data_df is not None:
-#                 print(vbp_chart_data_df.tail(10))
+#                 logger.debug(f"VBP chart data (last 10 rows):\n{vbp_chart_data_df.tail(10)}")
 
 #     except KeyboardInterrupt:
-#         print("Stopping subscription and exiting...")
+#         logger.info("Stopping subscription and exiting...")
 #     finally:
 #         subscribe_to_chart_data.stop_bridge()

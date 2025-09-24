@@ -1,43 +1,22 @@
 """
-Volume by Price (VBP) Chart Data Fetcher Module.
+Volume by Price (VBP) Chart Data Fetcher Downloader Module.
 
-This module provides functionality to fetch and process Volume by Price (VBP) chart data
-from Sierra Chart using the trade29 SC bridge. The module contains the GetVbpData class
-which handles the connection to Sierra Chart, data retrieval, and processing of VBP data
-into structured pandas DataFrames.
+This module allows downloading and saving Volume by Price (VBP) chart data
+from Sierra Chart using the trade29 SC bridge. It utilizes the GetVbpData class.
 
-Classes:
-    GetVbpData: Main class for fetching and processing VBP chart data.
-
-Dependencies:
-    - trade29.sc: Sierra Chart bridge library for data communication
-    - pandas: Data manipulation and analysis library
-    - typing: Type hinting support
-
-Example:
-    Basic usage of the GetVbpData class:
-
-    ```python
-    from sc_py_bridge.get_vbp_chart_data import GetVbpData
-
-    # Initialize with default settings
-    vbp_fetcher = GetVbpData()
-
-    # Fetch and process VBP data
-    vbp_data = vbp_fetcher.get_vbp_chart_data()
-
-    # Clean up connection
-    vbp_fetcher.stop_bridge()
-    ```
+In the near future, I will update this module to just call the GetVbpData class
+from the sc_py_bridge package directly. That way, our dataframes remain consistent.
 
 Author: Roy Williams
 Version: 1.0.0
+Last Updated: September 2025
 """
 
 # Postpone evaluation of type annotations to avoid forward-reference issues
 from __future__ import annotations
 
 # Standard library imports
+import os
 # Bring in common typing primitives used for annotations
 from typing import Any, List, Optional
 
@@ -256,10 +235,10 @@ if __name__ == "__main__":
     vbp_data = GetVbpData()
     result_df = vbp_data.get_vbp_chart_data()
 
-    # # Print the full DataFrame with all rows and columns visible
-    # # logger.debug(f"VBP chart data:\n{result_df}")
-
-    # # Use context manager for one-time full display
-    # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-    #     logger.debug(f"VBP chart data (full display):\n{result_df}")
-    # # vbp_data.stop_bridge()
+    # Save the DataFrame to the specified directory using os.path
+    output_dir = os.path.join('data', 'raw', 'dataframes')
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, 'volume_by_price_15years2.csv')
+    result_df.to_csv(output_path)
+    # logger.info(f"Volume by Price data saved to: {output_path}")
+    print(f"Volume by Price data saved to: {output_path}")
