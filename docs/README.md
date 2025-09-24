@@ -3,6 +3,7 @@
 ## Getting Started
 - **[Main README](../README.md)** - Project overview, philosophy, and current status
 - **[Environment Setup](setup/environment.md)** - Installation and configuration guide
+- **[Sierra Chart Bridge Setup](setup/sierra-chart-bridge.md)** - Complete bridge installation guide
 - **[Project Structure](#project-structure)** - How the codebase is organized
 
 ## Research Documentation

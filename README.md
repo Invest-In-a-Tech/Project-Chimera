@@ -86,16 +86,32 @@ pywin32==311           # Windows integration
 ## Quick Start
 
 ### Prerequisites
-1. **Sierra Chart** installed and configured with ES Futures data feed
+1. **Sierra Chart** (version 2626+) with ES Futures data feed
 2. **Python 3.13+** 
 3. **uv** package manager (recommended) or pip
+4. **Windows 10/11** (required for Sierra Chart bridge)
 
 ### Installation
+
+#### 1. Install Sierra Chart Bridge
+The project requires the `trade29-scpy` bridge for data extraction:
+
 ```powershell
-# Clone the repository
+# Clone the repository first
 git clone <your-repo-url>
 cd Project-Chimera
 
+# Install the Sierra Chart bridge
+pip install trade29_scpy-1.0.2.tar.gz
+
+# Verify bridge installation
+python -c "import trade29; print('Bridge installed')"
+```
+
+**Important**: You must also install the Sierra Chart DLL component. See [Sierra Chart Bridge Setup](docs/setup/sierra-chart-bridge.md) for complete instructions.
+
+#### 2. Install Project Dependencies
+```powershell
 # Install dependencies with uv (recommended)
 uv sync
 
