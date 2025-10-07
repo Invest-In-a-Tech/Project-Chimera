@@ -32,6 +32,7 @@
 ## Daily Progress
 - **[Research Logbook](logbook/)** - Daily progress and decision log
   - [2025-09-23](logbook/2025-09-23.md) - Documentation setup and VBP downloader
+  - [2025-09-24](logbook/2025-09-24.md) - EDA Infrastructure Development
 
 ## Project Structure
 
