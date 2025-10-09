@@ -4,7 +4,10 @@ Project Chimera CLI - Command Line Interface for VBP Data Operations
 
 This module provides a simple command-line interface for common operations
 in the Project Chimera research pipeline, including data extraction and
-basic analysis tasks.
+basic analysis ta    process_parser.add_argument(
+        '--input', '-i',
+        help='Input CSV file path (default: auto-detect VBP data in data/raw/dataframes/)'
+    )
 
 Usage:
     uv run main.py download-vbp    # Extract historical VBP data
@@ -22,9 +25,11 @@ from typing import Optional
 # This allows us to check for import success early and provide better error messages
 try:
     from src.project_chimera.data_sources.get_vbp_downloader import GetVbpData
+    from src.common.data_pipeline.run_data_pipeline import DataPipelineRunner
 except ImportError:
     # Set to None if import fails - will be handled gracefully in the function
     GetVbpData = None
+    DataPipelineRunner = None
 
 # Configure logging for the CLI with timestamp and structured format
 # This provides clear visibility into CLI operations and any errors that occur
@@ -91,6 +96,92 @@ def download_vbp_data(output_path: Optional[str] = None) -> None:
         sys.exit(1)
 
 
+def process_data_pipeline(input_path: Optional[str] = None, output_path: Optional[str] = None) -> None:
+    """
+    Process existing data through the data pipeline.
+    
+    This function uses the DataPipelineRunner to process either existing CSV files
+    or run analysis on previously downloaded data. It demonstrates how to use the
+    data pipeline infrastructure for post-processing workflows.
+
+    Args:
+        input_path: Optional path to input CSV file. If None, uses default VBP data location
+        output_path: Optional path for processed output. If None, displays results to console
+    """
+    # Check if DataPipelineRunner was imported successfully
+    if DataPipelineRunner is None:
+        logger.error("Cannot import DataPipelineRunner class")
+        logger.error("Make sure all dependencies are installed and the pipeline module exists")
+        sys.exit(1)
+
+    try:
+        # Determine input path - use provided path or default VBP data location
+        if input_path is None:
+            # Look for existing VBP data files in order of preference
+            possible_files = [
+                Path("data/raw/dataframes/volume_by_price_data.csv"),
+                Path("data/raw/dataframes/1.volume_by_price_15years.csv"),
+                Path("data/raw/dataframes/volume_by_price_15years.csv")
+            ]
+            
+            default_input = None
+            for file_path in possible_files:
+                if file_path.exists():
+                    default_input = file_path
+                    break
+                    
+            if default_input is None:
+                logger.error("No VBP data files found in data/raw/dataframes/")
+                logger.info("Run 'uv run main.py download-vbp' first, or specify --input path")
+                sys.exit(1)
+                
+            input_path = str(default_input)
+
+        # Verify input file exists
+        if not Path(input_path).exists():
+            logger.error("Input file not found: %s", input_path)
+            sys.exit(1)
+
+        # Configure the data pipeline with file-based processing
+        logger.info("Initializing data pipeline for file: %s", input_path)
+        config = {
+            'file_path': input_path
+        }
+        
+        # Initialize and run the pipeline
+        pipeline = DataPipelineRunner(config)
+        processed_df = pipeline.run_pipeline()
+
+        # Get pipeline information for reporting
+        pipeline_info = pipeline.get_data_info()
+        logger.info("Pipeline processing completed:")
+        logger.info("  - Data source: %s", pipeline_info['data_source'])
+        logger.info("  - Shape: %s", pipeline_info['shape'])
+        logger.info("  - Columns: %s", len(pipeline_info['columns']) if pipeline_info['columns'] else 0)
+
+        # Handle output
+        if output_path:
+            # Save processed data to specified output path
+            output_dir = Path(output_path).parent
+            output_dir.mkdir(parents=True, exist_ok=True)
+            processed_df.to_csv(output_path, index=True)
+            logger.info("Processed data saved to: %s", output_path)
+        else:
+            # Display summary information to console
+            print("\nProcessed Data Summary:")
+            print(f"Shape: {processed_df.shape}")
+            print(f"Columns: {list(processed_df.columns)}")
+            print(f"Date range: {processed_df.index.min()} to {processed_df.index.max()}")
+            print("\nFirst 5 rows:")
+            print(processed_df.head())
+
+        logger.info("Data pipeline processing completed successfully")
+
+    except (ValueError, KeyError, IOError, FileNotFoundError) as e:
+        logger.error("Error processing data through pipeline: %s", e)
+        sys.exit(1)
+
+
 def show_project_status() -> None:
     """
     Display comprehensive project status including data files and documentation.
@@ -153,6 +244,8 @@ def main():
 Examples:
   uv run main.py download-vbp                    # Download VBP data to default location
   uv run main.py download-vbp --output data.csv  # Download to custom file
+  uv run main.py process-data                     # Process default VBP data through pipeline
+  uv run main.py process-data --input data.csv   # Process custom input file
   uv run main.py status                          # Show project status
         """
     )
@@ -167,7 +260,21 @@ Examples:
     )
     download_parser.add_argument(
         '--output', '-o',
-        help='Output CSV file path (default: data/raw/dataframes/volume_by_price_data.csv)'
+        help='Output CSV file path (default: data/raw/dataframes/1.volume_by_price_15years.csv)'
+    )
+
+    # Configure the data processing pipeline command
+    process_parser = subparsers.add_parser(
+        'process-data',
+        help='Process data through the data pipeline'
+    )
+    process_parser.add_argument(
+        '--input', '-i',
+        help='Input CSV file path (default: data/raw/dataframes/1.volume_by_price_15years.csv)'
+    )
+    process_parser.add_argument(
+        '--output', '-o',
+        help='Output CSV file path (default: display results to console)'
     )
 
     # Configure the project status command (no additional arguments needed)
@@ -180,6 +287,9 @@ Examples:
     if args.command == 'download-vbp':
         # Execute VBP data download with optional custom output path
         download_vbp_data(args.output)
+    elif args.command == 'process-data':
+        # Execute data pipeline processing with optional input/output paths
+        process_data_pipeline(args.input, args.output)
     elif args.command == 'status':
         # Display project status dashboard
         show_project_status()

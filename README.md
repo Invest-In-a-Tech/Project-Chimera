@@ -63,7 +63,13 @@ Discover repeatable, high-probability setups in ES Futures by combining:
 - `subscribe_to_vbp_chart_data.py`: Real-time VBP data subscription
 - Bridge to Sierra Chart via `trade29-scpy` library
 
-#### 3. Feature Engineering (`src/project_chimera/features/`)
+#### 3. Data Pipeline (`src/common/data_pipeline/`)
+- `run_data_pipeline.py`: Main data processing orchestrator with comprehensive logging
+- `dataframe_processor.py`: CSV data processing and transformation utilities
+- Handles both live data streams and file-based processing workflows
+- Provides structured logging and error handling for robust pipeline execution
+
+#### 4. Feature Engineering (`src/project_chimera/features/`)
 - **Status**: Ready for implementation
 - **Planned**: VBP profile analysis, auction behavior features, volume distribution metrics
 
@@ -121,23 +127,177 @@ pip install -r requirements.txt
 
 ### Extract Historical VBP Data
 ```powershell
-# Run the VBP data downloader (direct script)
-uv run src\project_chimera\data_sources\get_vbp_downloader.py
-
-# Or use the CLI interface
+# Option 1: Use the CLI interface (recommended)
 uv run main.py download-vbp
 
-# Data saved to: data/raw/dataframes/volume_by_price_15years.csv
+# Option 2: Run the VBP data downloader directly
+uv run src\project_chimera\data_sources\get_vbp_downloader.py
+
+# Data saved to: data/raw/dataframes/volume_by_price_data.csv
+```
+
+### Process Data Through the Pipeline
+```powershell
+# Process existing VBP data through the data pipeline
+uv run main.py process-data
+
+# Process a specific input file
+uv run main.py process-data --input "data/raw/dataframes/your_data.csv"
+
+# Process and save to a specific output file
+uv run main.py process-data --output "data/processed/processed_data.csv"
+
+# Process with both custom input and output
+uv run main.py process-data --input "data/custom.csv" --output "data/results.csv"
+```
+
+### Check Project Status
+```powershell
+# View project status and available data files
+uv run main.py status
+```
+
+### CLI Help
+```powershell
+# View all available commands
+uv run main.py --help
+
+# Get help for a specific command
+uv run main.py process-data --help
 ```
 
 ### Verify Setup
-The script will create a CSV file containing:
-- **DateTime**: Bar timestamps
-- **Price**: Each price level in the VBP profile  
-- **BidVol/AskVol**: Volume breakdown by market side
-- **TotalVolume**: Total volume at each price
-- **NumOfTrades**: Number of trades at each price
-- **Market indicators**: OHLC, RVOL, Today's range data
+The data extraction will create CSV files containing:
+- **DateTime**: Bar timestamps (indexed)
+- **OHLCV Data**: Open, High, Low, Close, Volume for each time period
+- **VBP Profile Data**: 
+  - **Price**: Each price level in the VBP profile  
+  - **BidVol/AskVol**: Volume breakdown by market side
+  - **TotalVolume**: Total volume at each price
+  - **NumOfTrades**: Number of trades at each price
+- **Market Indicators**: RVOL, Today's range data, large trade indicators
+
+**Example verification:**
+```powershell
+# Check what data files are available
+uv run main.py status
+
+# Process and preview data structure
+uv run main.py process-data --input "data/raw/dataframes/1.volume_by_price_15years.csv"
+```
+
+This will display data shape, columns, date range, and preview the first 5 rows.
+
+---
+
+## CLI Commands Reference
+
+Project Chimera provides a comprehensive command-line interface for common operations:
+
+### Available Commands
+
+#### `download-vbp`
+Download historical Volume by Price data from Sierra Chart:
+```powershell
+uv run main.py download-vbp [--output PATH]
+```
+- `--output, -o`: Custom output CSV file path (optional)
+- Default output: `data/raw/dataframes/volume_by_price_data.csv`
+
+#### `process-data`
+Process data through the data pipeline:
+```powershell
+uv run main.py process-data [--input PATH] [--output PATH]
+```
+- `--input, -i`: Input CSV file path (optional, defaults to latest VBP data)
+- `--output, -o`: Output CSV file path (optional, displays to console if not specified)
+
+**What it does:**
+- Loads data using the DataPipelineRunner
+- Applies data processing and transformation
+- Provides comprehensive logging and error handling
+- Returns processed DataFrame ready for analysis
+
+#### `status`
+Display project status and available data files:
+```powershell
+uv run main.py status
+```
+Shows:
+- Available data files and their sizes
+- Documentation structure
+- Suggested next steps
+
+### Example Workflows
+
+#### Complete Data Processing Workflow
+```powershell
+# 1. Download fresh VBP data
+uv run main.py download-vbp
+
+# 2. Process the data through the pipeline
+uv run main.py process-data
+
+# 3. Process and save for further analysis
+uv run main.py process-data --output "data/processed/analyzed_vbp.csv"
+
+# 4. Check project status
+uv run main.py status
+```
+
+#### Working with Existing Data
+```powershell
+# Process existing data file
+uv run main.py process-data --input "data/raw/dataframes/1.volume_by_price_15years.csv"
+
+# Process and save to specific location
+uv run main.py process-data \
+    --input "data/raw/dataframes/1.volume_by_price_15years.csv" \
+    --output "data/processed/historical_analysis.csv"
+```
+
+---
+
+## Data Pipeline Architecture
+
+The data pipeline provides a robust, modular approach to processing financial data:
+
+### Key Components
+
+1. **DataPipelineRunner**: Main orchestrator class
+   - Handles both live data streams and file-based processing
+   - Comprehensive logging and error handling
+   - Type-safe configuration management
+
+2. **DataFrameProcessor**: Specialized CSV data processor
+   - Financial data-specific transformations
+   - Time-series handling and filtering
+   - Market hours and datetime processing
+
+### Pipeline Features
+
+- **Flexible Input Sources**: File paths or live DataFrames
+- **Robust Error Handling**: Detailed error messages and graceful failure
+- **Comprehensive Logging**: Full audit trail of processing steps
+- **Type Safety**: Full type hints and validation
+- **Modular Design**: Easy to extend and customize
+
+### Usage in Code
+
+```python
+from src.common.data_pipeline.run_data_pipeline import DataPipelineRunner
+
+# Configure for file processing
+config = {'file_path': 'data/raw/dataframes/market_data.csv'}
+pipeline = DataPipelineRunner(config)
+
+# Run the pipeline
+processed_df = pipeline.run_pipeline()
+
+# Get processing information
+info = pipeline.get_data_info()
+print(f"Processed {info['shape'][0]} rows from {info['data_source']} source")
+```
 
 ---
 
@@ -149,16 +309,63 @@ Project-Chimera/
 │   ├── project_chimera/          # Main research modules
 │   │   ├── data_sources/         # Data extraction & preprocessing
 │   │   └── features/             # Feature engineering (planned)
+│   ├── common/                   # Shared utilities
+│   │   └── data_pipeline/        # Data processing pipeline
+│   │       ├── run_data_pipeline.py    # Main pipeline orchestrator
+│   │       └── dataframe_processor.py  # Data processing utilities
 │   └── sc_py_bridge/             # Sierra Chart integration
 │       ├── get_vbp_chart_data.py     # Historical data fetcher
 │       └── subscribe_to_vbp_chart_data.py  # Real-time subscriber
 ├── data/
-│   └── raw/dataframes/           # Extracted datasets
+│   ├── raw/dataframes/           # Extracted datasets
+│   └── processed/                # Pipeline-processed data (created as needed)
 ├── docs/
 │   ├── logbook/                  # Daily research logs  
 │   └── templates/                # Experiment templates
 ├── notebooks/                    # Jupyter analysis notebooks
-└── main.py                       # CLI entry point (planned)
+└── main.py                       # CLI entry point
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### "Default VBP data file not found"
+```
+ERROR - Default VBP data file not found: data\raw\dataframes\volume_by_price_data.csv
+INFO - Run 'uv run main.py download-vbp' first, or specify --input path
+```
+
+**Solutions:**
+1. Download VBP data first: `uv run main.py download-vbp`
+2. Use existing data file: `uv run main.py process-data --input "data/raw/dataframes/1.volume_by_price_15years.csv"`
+3. Check available files: `uv run main.py status`
+
+#### "Cannot import DataPipelineRunner class"
+```
+ERROR - Cannot import DataPipelineRunner class
+```
+
+**Solutions:**
+1. Ensure you're in the correct directory: `cd Project-Chimera`
+2. Install dependencies: `uv sync`
+3. Verify Python path includes src directory
+
+#### File Path Issues on Windows
+- Use forward slashes or escape backslashes in file paths
+- Wrap paths with spaces in quotes: `"data/my file.csv"`
+
+### Getting Help
+
+```powershell
+# View all available commands
+uv run main.py --help
+
+# Get specific command help
+uv run main.py process-data --help
+uv run main.py download-vbp --help
 ```
 
 ---
