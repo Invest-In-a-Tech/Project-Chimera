@@ -125,11 +125,11 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
             'live': PipelineMode.LIVE,
             'auto': PipelineMode.AUTO
         }
-        
+
         if mode not in mode_mapping:
             logger.error("Invalid mode '%s'. Valid modes: %s", mode, list(mode_mapping.keys()))
             sys.exit(1)
-            
+
         pipeline_mode = mode_mapping[mode]
         logger.info("Selected pipeline mode: %s", mode)
 
@@ -140,10 +140,10 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
             logger.warning("Live mode with Sierra Chart integration is not yet implemented")
             logger.info("This feature will connect to Sierra Chart for real-time data processing")
             sys.exit(1)
-            
+
         elif pipeline_mode in [PipelineMode.TRAINING, PipelineMode.AUTO]:
             # Training mode or auto-detect mode (file-based processing)
-            
+
             # Determine input path - use provided path or auto-detect VBP data location
             if input_path is None:
                 # Look for existing VBP data files in order of preference
@@ -152,18 +152,18 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
                     Path("data/raw/dataframes/1.volume_by_price_15years.csv"),
                     Path("data/raw/dataframes/volume_by_price_15years.csv")
                 ]
-                
+
                 default_input = None
                 for file_path in possible_files:
                     if file_path.exists():
                         default_input = file_path
                         break
-                        
+    
                 if default_input is None:
                     logger.error("No VBP data files found in data/raw/dataframes/")
                     logger.info("Run 'uv run main.py download-vbp' first, or specify --input path")
                     sys.exit(1)
-                    
+       
                 input_path = str(default_input)
 
             # Verify input file exists
@@ -176,7 +176,7 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
             config = {
                 'file_path': input_path
             }
-            
+
             # Initialize and run the pipeline with explicit mode
             pipeline = DataPipelineRunner(config, pipeline_mode)
             processed_df = pipeline.run_pipeline()
