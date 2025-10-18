@@ -30,7 +30,7 @@ For every research question, examine through:
 
 ### Phase 2: Data Exploration
 1. **Collection**: Gather relevant historical data
-2. **Quality Check**: Validate data completeness and accuracy  
+2. **Quality Check**: Validate data completeness and accuracy
 3. **Initial Analysis**: Exploratory data analysis
 4. **Feature Engineering**: Create relevant indicators
 

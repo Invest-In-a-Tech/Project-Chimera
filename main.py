@@ -46,10 +46,10 @@ logger = logging.getLogger(__name__)
 def download_vbp_data(output_path: Optional[str] = None) -> None:
     """
     Download historical Volume by Price (VBP) data using the GetVbpData class.
-    
+
     This function handles the complete workflow of VBP data extraction:
     1. Initialize the VBP data fetcher with Sierra Chart bridge
-    2. Fetch and process historical VBP data 
+    2. Fetch and process historical VBP data
     3. Save processed data to CSV format
     4. Clean up connections and resources
 
@@ -97,11 +97,11 @@ def download_vbp_data(output_path: Optional[str] = None) -> None:
         sys.exit(1)
 
 
-def process_data_pipeline(input_path: Optional[str] = None, output_path: Optional[str] = None, 
+def process_data_pipeline(input_path: Optional[str] = None, output_path: Optional[str] = None,
                          mode: str = "auto") -> None:
     """
     Process data through the data pipeline with mode selection.
-    
+
     This function uses the DataPipelineRunner to process data in different modes:
     - 'training': File-based processing for ML model training and backtesting
     - 'live': Real-time data processing from Sierra Chart (future feature)
@@ -158,12 +158,12 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
                     if file_path.exists():
                         default_input = file_path
                         break
-    
+
                 if default_input is None:
                     logger.error("No VBP data files found in data/raw/dataframes/")
                     logger.info("Run 'uv run main.py download-vbp' first, or specify --input path")
                     sys.exit(1)
-       
+
                 input_path = str(default_input)
 
             # Verify input file exists
@@ -188,7 +188,10 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
             logger.info("  - Effective mode: %s", pipeline_info['effective_mode'])
             logger.info("  - Data source: %s", pipeline_info['data_source'])
             logger.info("  - Shape: %s", pipeline_info['shape'])
-            logger.info("  - Columns: %s", len(pipeline_info['columns']) if pipeline_info['columns'] else 0)
+            columns_count = (
+                len(pipeline_info['columns']) if pipeline_info['columns'] else 0
+            )
+            logger.info("  - Columns: %s", columns_count)
 
             # Handle output
             if output_path:
@@ -216,7 +219,7 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
 def show_project_status() -> None:
     """
     Display comprehensive project status including data files and documentation.
-    
+
     This function provides a dashboard view of the current project state:
     - Available data files and their sizes
     - Documentation structure (experiments, logbook entries)
@@ -261,7 +264,7 @@ def show_project_status() -> None:
 def main():
     """
     Main CLI entry point for Project Chimera research pipeline.
-    
+
     This function sets up the command-line interface with subcommands for:
     - VBP data extraction from Sierra Chart
     - Project status reporting
@@ -313,7 +316,10 @@ Examples:
         '--mode', '-m',
         choices=['training', 'live', 'auto'],
         default='auto',
-        help='Pipeline mode: training (file-based ML/backtesting), live (Sierra Chart real-time), auto (auto-detect) (default: auto)'
+        help=(
+            'Pipeline mode: training (file-based ML/backtesting), '
+            'live (Sierra Chart real-time), auto (auto-detect) (default: auto)'
+        )
     )
 
     # Configure the project status command (no additional arguments needed)

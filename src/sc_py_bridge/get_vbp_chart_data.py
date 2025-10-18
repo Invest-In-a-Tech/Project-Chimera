@@ -29,7 +29,7 @@ Example:
 
     # Fetch and process VBP data into a DataFrame
     vbp_data = vbp_fetcher.get_vbp_chart_data()
-    
+
     # Access specific data points
     print(vbp_data['Close'])  # Price data
     print(vbp_data['RVOL'])   # Relative volume indicator
@@ -81,19 +81,19 @@ logger = logging.getLogger(__name__)
 class GetVbpData:
     """
     Fetch and process Volume by Price (VBP) chart data from Sierra Chart.
-    
+
     This class manages the complete workflow of retrieving VBP data from Sierra Chart,
     including establishing the bridge connection, requesting historical data with
     specified base data and study indicators, and transforming the nested VBP structure
     into a flat, analysis-ready pandas DataFrame.
-    
+
     The class handles:
     - Bridge connection management (creation and cleanup)
     - Chart data requests with configurable historical depth
     - VBP data extraction and flattening (nested lists to tabular format)
     - Column normalization and renaming for consistency
     - Integration of price data with volume distribution data
-    
+
     Attributes:
         bridge (SCBridge): Active connection instance for communicating with Sierra Chart.
             Used to send data requests and receive responses.
@@ -101,24 +101,24 @@ class GetVbpData:
             Useful for cleaning up helper columns that aren't needed in analysis.
         historical_bars (int): Number of historical bars to request from Sierra Chart.
             Default is 1,000,000 bars to ensure comprehensive historical coverage.
-    
+
     Example:
         >>> # Initialize with custom settings
         >>> fetcher = GetVbpData(historical_bars=5000)
         >>> df = fetcher.get_vbp_chart_data()
-        >>> 
+        >>>
         >>> # Access VBP data
         >>> print(df[['Price', 'TotalVolume', 'Close']].head())
-        >>> 
+        >>>
         >>> # Cleanup
         >>> fetcher.stop_bridge()
-    
+
     Note:
         - The bridge connection should be closed with stop_bridge() when done
         - Each bar's VBP data is expanded into multiple rows (one per price level)
         - DateTime index enables easy time-series operations and filtering
     """
-    
+
     # SCBridge instance that maintains the connection to Sierra Chart
     # This is the communication channel for all data requests and responses
     # Type: SCBridge object from trade29.sc library
@@ -151,7 +151,7 @@ class GetVbpData:
     ) -> None:
         """
         Initialize the GetVbpData instance with configuration parameters.
-        
+
         Sets up the Sierra Chart bridge connection, configures data cleanup settings,
         and establishes the historical depth for data requests. This constructor
         allows flexible configuration while providing sensible defaults for common use cases.
@@ -166,22 +166,25 @@ class GetVbpData:
             historical_bars (int, optional): Number of historical bars to request.
                 Defaults to 1000000. Larger values provide more historical data but may
                 increase query time and memory usage.
-        
+
         Returns:
             None
-        
+
         Example:
             >>> # Initialize with defaults
             >>> fetcher1 = GetVbpData()
-            >>> 
+            >>>
             >>> # Initialize with custom settings
-            >>> fetcher2 = GetVbpData(historical_bars=10000, columns_to_drop=['IsBarClosed', 'ID9.SG4'])
-            >>> 
+            >>> fetcher2 = GetVbpData(
+            ...     historical_bars=10000,
+            ...     columns_to_drop=['IsBarClosed', 'ID9.SG4'],
+            ... )
+            >>>
             >>> # Initialize with shared bridge
             >>> shared_bridge = SCBridge()
             >>> fetcher3 = GetVbpData(bridge=shared_bridge)
             >>> fetcher4 = GetVbpData(bridge=shared_bridge)
-        
+
         Note:
             - Creating multiple instances with separate bridges consumes more resources
             - The bridge connection is NOT automatically closed; call stop_bridge() explicitly
@@ -192,14 +195,17 @@ class GetVbpData:
         logger.debug("Initializing GetVbpData class")
 
         # Assign the bridge parameter or create a new SCBridge if none was provided
-        # The ternary expression checks if bridge is not None and uses it, otherwise instantiates new
-        # This pattern enables both standalone usage and connection sharing scenarios
+    # The ternary expression checks if bridge is not None and reuses it
+    # Falls back to creating a fresh SCBridge when no shared instance is provided
+    # This pattern enables both standalone usage and connection sharing scenarios
         self.bridge = bridge if bridge is not None else SCBridge()
 
         # Assign the columns_to_drop parameter or use default list with 'IsBarClosed'
         # IsBarClosed is a helper column that indicates bar completion status
         # It's typically not needed in final analysis, so we remove it by default
-        self.columns_to_drop = columns_to_drop if columns_to_drop is not None else ['IsBarClosed']
+        self.columns_to_drop = (
+            columns_to_drop if columns_to_drop is not None else ['IsBarClosed']
+        )
 
         # Store the number of historical bars to request in subsequent data fetches
         # This value is used by fetch_vbp_chart_data() when calling bridge.get_chart_data()
@@ -209,12 +215,12 @@ class GetVbpData:
     def fetch_vbp_chart_data(self) -> pd.DataFrame:
         """
         Fetch raw Volume by Price (VBP) chart data from Sierra Chart.
-        
+
         This method constructs and executes a data request to Sierra Chart, specifying
         which base data fields (OHLCV) and study indicators to retrieve. The VBP data
         is embedded in the response as nested lists within each bar's data. This raw
         DataFrame requires further processing to be analysis-ready.
-        
+
         The method requests:
         - Base OHLCV (Open, High, Low, Close, Volume) data
         - Volume by Price distribution for each bar
@@ -227,18 +233,18 @@ class GetVbpData:
                 Each row represents a time bar, and the VolumeByPrice column contains
                 a list of [Price, BidVol, AskVol, TotalVolume, NumOfTrades] arrays.
                 Requires processing via process_vbp_chart_data() for flat structure.
-        
+
         Raises:
             ConnectionError: If bridge cannot connect to Sierra Chart.
             ValueError: If chart data request returns invalid or empty data.
-        
+
         Example:
             >>> fetcher = GetVbpData()
             >>> raw_df = fetcher.fetch_vbp_chart_data()
             >>> print(raw_df.columns)
             >>> print(type(raw_df['VolumeByPrice'].iloc[0]))  # List of lists
             >>> # Further processing needed to flatten VBP data
-        
+
         Note:
             - This returns RAW data with nested VBP structure
             - Call process_vbp_chart_data() to flatten and normalize
@@ -269,14 +275,13 @@ class GetVbpData:
             # Subgraph 1 returns the RVOL value (ratio of current volume to typical volume)
             # Used to identify abnormal volume activity
             SubgraphQuery(study_id=6, subgraphs=[1]),
-            
+
             # Study ID 4: Daily High, Low, Open levels
             # Subgraph 1: Today's opening price (first trade of the session)
             # Subgraph 2: Today's highest price (intraday high)
             # Subgraph 3: Today's lowest price (intraday low)
-            # Used for intraday support/resistance and range analysis
             SubgraphQuery(study_id=4, subgraphs=[1, 2, 3]),
-            
+
             # Study ID 9: Large Trades analysis - tracks unusually large orders
             # Subgraph 1: Maximum volume in a single large trade
             # Subgraph 2: Total volume from all large trades
@@ -327,20 +332,20 @@ class GetVbpData:
     def process_vbp_chart_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Process and flatten raw VBP chart data into analysis-ready DataFrame.
-        
+
         This method transforms the nested VolumeByPrice structure from Sierra Chart
         into a flat, tabular format suitable for analysis and visualization. Each bar's
         VBP data (which is a list of price levels with volume distributions) is exploded
         into separate rows, creating multiple rows per time bar - one for each price level
         where volume occurred.
-        
+
         The processing pipeline:
         1. Extract nested VBP lists and convert to individual DataFrames
         2. Concatenate all VBP data with DateTime keys to maintain time reference
         3. Sort by time and price for consistent ordering
         4. Join VBP data back with original OHLCV and indicator data
         5. Clean up helper columns and normalize column names
-        
+
         Args:
             df (pd.DataFrame): Raw chart data from fetch_vbp_chart_data() containing
                 nested VolumeByPrice column. Expected to have DateTime index and
@@ -353,25 +358,25 @@ class GetVbpData:
                 - Original OHLCV columns (Open, High, Low, Close, Volume)
                 - Study indicator columns (RVOL, TodayOpen, TodayHigh, etc.)
                 - Sorted by DateTime then Price for consistent structure
-        
+
         Raises:
             KeyError: If expected columns (VolumeByPrice, study columns) are missing.
             ValueError: If VolumeByPrice contains invalid nested structure.
-        
+
         Example:
             >>> fetcher = GetVbpData()
             >>> raw_df = fetcher.fetch_vbp_chart_data()
             >>> processed_df = fetcher.process_vbp_chart_data(raw_df)
-            >>> 
+            >>>
             >>> # Check structure
             >>> print(processed_df.columns)
             >>> print(processed_df[['Price', 'TotalVolume', 'Close']].head(10))
-            >>> 
+            >>>
             >>> # Each bar now has multiple rows (one per price level)
             >>> timestamp = processed_df.index[0]
             >>> bar_data = processed_df.loc[timestamp]
             >>> print(f"Price levels in bar: {len(bar_data)}")
-        
+
         Note:
             - Output DataFrame has MORE rows than input (one row per price level per bar)
             - DateTime index will have repeated values (multiple price levels per time)
@@ -381,11 +386,12 @@ class GetVbpData:
 
         # Define nested helper function to convert a single bar's VBP data into a DataFrame
         # This function is called for each bar's VolumeByPrice list to create individual DataFrames
-        # Takes a list of lists where each inner list is [Price, BidVol, AskVol, TotalVolume, NumOfTrades]
+    # Takes a list of lists where each inner list captures price and volume details
+    # Format: [Price, BidVol, AskVol, TotalVolume, NumOfTrades]
         def vbp_to_df(vbp_rows: list[list[Any]]) -> pd.DataFrame:
             """
             Convert a single bar's VolumeByPrice nested list into a tabular DataFrame.
-            
+
             Each bar from Sierra Chart contains a VolumeByPrice field with nested data
             showing how volume was distributed across different price levels. This helper
             flattens that nested structure into a DataFrame with named columns.
@@ -400,7 +406,7 @@ class GetVbpData:
                 pd.DataFrame: DataFrame with columns ['Price', 'BidVol', 'AskVol',
                     'TotalVolume', 'NumOfTrades'] where each row is a price level
                     from the input bar.
-            
+
             Example:
                 >>> vbp_data = [[100.0, 10, 15, 25, 5], [100.5, 20, 10, 30, 8]]
                 >>> result = vbp_to_df(vbp_data)
@@ -414,7 +420,7 @@ class GetVbpData:
             # Price: price level, BidVol: buy volume, AskVol: sell volume,
             # TotalVolume: total volume at this price, NumOfTrades: trade count
             columns = ['Price', 'BidVol', 'AskVol', 'TotalVolume', 'NumOfTrades']
-            
+
             # Create and return a DataFrame from the nested lists using the defined schema
             # pandas automatically aligns each inner list to the column names
             # This converts unstructured nested data into structured tabular format
@@ -481,35 +487,34 @@ class GetVbpData:
         combined_df.rename(columns={
             # Rename 'Last' to 'Close' - more commonly used term for closing/last price
             'Last': 'Close',
-            
             # Study ID 6, Subgraph 1: Relative Volume indicator
             # RVOL shows current volume relative to average (e.g., 1.5 = 50% above average)
             'ID6.SG1': 'RVOL',
-            
+
             # Study ID 4, Subgraph 1: Today's session opening price
             # First trade price of the current trading day
             'ID4.SG1': 'TodayOpen',
-            
+
             # Study ID 4, Subgraph 2: Today's session high price
             # Highest price reached during current trading day
             'ID4.SG2': 'TodayHigh',
-            
+
             # Study ID 4, Subgraph 3: Today's session low price
             # Lowest price reached during current trading day
             'ID4.SG3': 'TodayLow',
-            
+
             # Study ID 9, Subgraph 1: Large Trades - Maximum volume in single trade
             # Largest individual trade volume detected in the bar
             'ID9.SG1': 'LTMaxVol',
-            
+
             # Study ID 9, Subgraph 2: Large Trades - Total volume from all large trades
             # Sum of volume from all trades classified as "large"
             'ID9.SG2': 'LTTotalVol',
-            
+
             # Study ID 9, Subgraph 3: Large Trades - Bid side volume
             # Volume from large trades executed at bid (selling pressure)
             'ID9.SG3': 'LTBidVol',
-            
+
             # Study ID 9, Subgraph 4: Large Trades - Ask side volume
             # Volume from large trades executed at ask (buying pressure)
             'ID9.SG4': 'LTAskVol'
@@ -518,17 +523,18 @@ class GetVbpData:
         # Return the fully processed, flattened, and normalized DataFrame
         # Ready for analysis, visualization, and feature engineering
         # Contains integrated price data, volume distribution, and indicators
+
         return combined_df
 
     def get_vbp_chart_data(self) -> pd.DataFrame:
         """
         Fetch and process VBP chart data in one complete workflow.
-        
+
         This is the main public method that orchestrates the complete data pipeline:
         fetching raw data from Sierra Chart and transforming it into an analysis-ready
         DataFrame. This method combines fetch_vbp_chart_data() and process_vbp_chart_data()
         into a single convenient call.
-        
+
         The complete workflow:
         1. Request chart data from Sierra Chart via the bridge
         2. Receive raw data with nested VBP structure
@@ -544,30 +550,30 @@ class GetVbpData:
                 - VBP columns (Price, BidVol, AskVol, TotalVolume, NumOfTrades)
                 - Indicator columns (RVOL, TodayOpen/High/Low, LT metrics)
                 - Sorted by DateTime and Price for consistent structure
-        
+
         Raises:
             ConnectionError: If Sierra Chart bridge connection fails.
             ValueError: If data format is invalid or processing fails.
             KeyError: If expected columns are missing from Sierra Chart response.
-        
+
         Example:
             >>> # Simple usage
             >>> fetcher = GetVbpData()
             >>> df = fetcher.get_vbp_chart_data()
             >>> print(df.head())
-            >>> 
+            >>>
             >>> # Analyze specific timestamp
             >>> timestamp = df.index[100]
             >>> bar_data = df.loc[timestamp]
             >>> print(f"Price levels: {bar_data['Price'].values}")
             >>> print(f"Close: {bar_data['Close'].iloc[0]}")
-            >>> 
+            >>>
             >>> # Filter by time
             >>> morning_data = df.between_time('09:30', '12:00')
-            >>> 
+            >>>
             >>> # Cleanup
             >>> fetcher.stop_bridge()
-        
+
         Note:
             - This method internally calls fetch_vbp_chart_data() and process_vbp_chart_data()
             - Each call creates a new request to Sierra Chart (not cached)
@@ -592,24 +598,24 @@ class GetVbpData:
     def stop_bridge(self) -> None:
         """
         Stop and clean up the Sierra Chart bridge connection.
-        
+
         This method properly closes the connection to Sierra Chart, releasing
         resources and ensuring clean shutdown. Should be called when done fetching
         data to prevent resource leaks and ensure graceful disconnection.
-        
+
         Best practice is to call this method after all data fetching operations
         are complete, or use a try/finally block to ensure cleanup even if errors occur.
-        
+
         Returns:
             None
-        
+
         Example:
             >>> # Basic usage
             >>> fetcher = GetVbpData()
             >>> df = fetcher.get_vbp_chart_data()
             >>> # ... use data ...
             >>> fetcher.stop_bridge()
-            >>> 
+            >>>
             >>> # With error handling
             >>> fetcher = GetVbpData()
             >>> try:
@@ -617,11 +623,11 @@ class GetVbpData:
             ...     # ... process data ...
             >>> finally:
             ...     fetcher.stop_bridge()
-            >>> 
+            >>>
             >>> # Context manager pattern (if implemented)
             >>> with GetVbpData() as fetcher:
             ...     df = fetcher.get_vbp_chart_data()
-        
+
         Note:
             - Always call this method when done to prevent resource leaks
             - After calling stop_bridge(), the bridge cannot be reused

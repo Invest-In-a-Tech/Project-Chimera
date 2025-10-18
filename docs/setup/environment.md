@@ -90,7 +90,7 @@ Expected output: CSV file created in `data/raw/dataframes/`
 - Check firewall settings
 - Ensure `trade29-scpy` bridge is properly configured
 
-### Python Environment Issues  
+### Python Environment Issues
 - Confirm Python 3.13+ is installed
 - On Windows, ensure `pywin32` is properly installed
 - Try reinstalling dependencies with `--force-reinstall`

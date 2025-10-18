@@ -25,47 +25,47 @@ import pandas as pd
 class ProcessMarketData:
     """
     Process market data with historical lookback capabilities.
-    
+
     This class processes market data for a given timestamp and retrieves historical
     data for a specified number of previous periods. It organizes data into a
     structured dictionary format with keys for current period ('current') and
     historical periods ('t-1', 't-2', etc.).
-    
+
     Attributes:
         market_data (Dict[str, Dict[str, Any]]): Dictionary storing processed market data
             with structure: {'current': {...}, 't-1': {...}, 't-2': {...}, ...}
         lookback_period (int): Number of previous periods to retrieve for historical context.
-    
+
     Example:
         >>> processor = ProcessMarketData(lookback_period=5)
         >>> data = processor.process_market_data(row, timestamp, df)
         >>> current_close = data['current']['Close']
         >>> previous_close = data['t-1']['Close']
     """
-    
+
     def __init__(self, lookback_period: int = 10) -> None:
         """
         Initialize the ProcessMarketData instance.
-        
+
         Args:
             lookback_period (int, optional): Number of previous periods to look back.
                 Defaults to 10. This determines how many historical data points
                 will be retrieved and stored for analysis.
-        
+
         Returns:
             None
-        
+
         Example:
             >>> processor = ProcessMarketData(lookback_period=20)
         """
         # Initialize an empty dictionary to store processed market data
         # Structure: {'current': {...}, 't-1': {...}, 't-2': {...}, ...}
         self.market_data: Dict[str, Dict[str, Any]] = {}
-        
+
         # Store the number of previous periods to look back
         # This controls how much historical data will be retrieved
         self.lookback_period: int = lookback_period
-    
+
     def process_market_data(
         self,
         current_row: pd.Series,
@@ -74,12 +74,12 @@ class ProcessMarketData:
     ) -> Dict[str, Dict[str, Any]]:
         """
         Process market data for the current row and timestamp with historical lookback.
-        
+
         This method extracts current market data and retrieves historical data for
         the specified lookback period. It handles missing data gracefully and ensures
         data structure consistency. The returned dictionary contains the current
         period's data and up to `lookback_period` previous periods.
-        
+
         Args:
             current_row (pd.Series): Current row of market data being processed.
                 Should contain columns like Open, High, Low, Close, Volume, etc.
@@ -88,18 +88,18 @@ class ProcessMarketData:
                 and retrieve historical data.
             vbp_chart_data_df (pd.DataFrame): Volume by Price chart data DataFrame.
                 Must have a datetime index and contain historical market data.
-                
+
         Returns:
             Dict[str, Dict[str, Any]]: Nested dictionary containing processed market data:
                 - 'current': Dict with current period's data, timestamp, and index
                 - 't-1', 't-2', ..., 't-N': Dicts with historical periods' data
                 Each period dict contains all columns from the original data plus
                 a 'timestamp' key.
-        
+
         Raises:
             IndexError: If current_timestamp is not found in the DataFrame index.
             KeyError: If expected columns are missing from the data.
-        
+
         Example:
             >>> processor = ProcessMarketData(lookback_period=3)
             >>> row = df.loc['2025-01-15']
@@ -107,7 +107,7 @@ class ProcessMarketData:
             >>> result = processor.process_market_data(row, timestamp, df)
             >>> print(result['current']['Close'])
             >>> print(result['t-1']['Close'])  # Previous day's close
-            
+
         Note:
             - If fewer than `lookback_period` historical records exist, only available
               records will be included (e.g., at the start of the dataset).
@@ -118,18 +118,18 @@ class ProcessMarketData:
         # This creates a sorted array of all available time points in the dataset
         # Returns: pd.Index (DatetimeIndex) containing unique timestamp values
         timestamps = vbp_chart_data_df.index.unique()
-        
+
         # Locate the position (index) of the current timestamp in the timestamps array
         # get_indexer returns an array with the position; [0] extracts the single integer
         # This index is used to navigate backward in time for historical lookback
         # Returns: int representing the position of current_timestamp in the index
         current_index = timestamps.get_indexer([current_timestamp])[0]
-        
+
         # Initialize the market_data dictionary with a 'current' key holding an empty dict
         # This resets any previous data and prepares the structure for new data
         # Structure: {'current': {}} will become {'current': {'Close': 100, ...}, ...}
         self.market_data = {'current': {}}
-        
+
         # Iterate through all columns in the current row (e.g., Open, High, Low, Close, Volume)
         # and populate the 'current' dictionary with column names as keys and values as data
         # This creates a flat dictionary of all current market data fields
@@ -137,24 +137,25 @@ class ProcessMarketData:
             # Store each column's value from current_row into the 'current' sub-dictionary
             # Example: self.market_data['current']['Close'] = 150.25
             self.market_data['current'][column] = current_row[column]
-        
+
         # Add metadata: store the actual timestamp of the current data point
         # This helps with debugging and provides temporal context for the data
         self.market_data['current']['timestamp'] = current_timestamp
-        
+
         # Add metadata: store the integer index position in the time series
         # Useful for calculations that depend on data point position (e.g., progress tracking)
         self.market_data['current']['index'] = current_index
-        
+
         # Calculate the actual number of lookback periods available
         # Use the minimum of requested lookback_period and current_index to avoid
         # attempting to access data before the start of the dataset
         # Example: if current_index=3 and lookback_period=10, available_lookbacks=3
         available_lookbacks = min(self.lookback_period, current_index)
-        
+
         # Iterate through each historical period from t-1 to t-N (where N=available_lookbacks)
         # range(1, available_lookbacks + 1) generates [1, 2, 3, ..., available_lookbacks]
-        # i represents how many periods back we're looking (1=previous period, 2=two periods back, etc.)
+        # i represents how many periods back we are looking
+        # Example mapping: 1 = previous period, 2 = two periods back, etc.
         for i in range(1, available_lookbacks + 1):
             # Calculate the timestamp for the i-th previous period
             # Subtract i from current_index to go backward in time

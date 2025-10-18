@@ -35,10 +35,10 @@ Example:
             vbp_update_df = subscriber.get_subscribed_vbp_chart_data()
             print(f"New data received: {len(vbp_update_df)} rows")
             print(vbp_update_df.tail(10))
-            
+
             # Process the update (your trading logic here)
             # analyze_market_data(vbp_update_df)
-            
+
     except KeyboardInterrupt:
         print("Stopping subscription...")
     finally:
@@ -78,23 +78,23 @@ logger = logging.getLogger(__name__)
 class SubscribeToVbpChartData:
     """
     Subscribe to real-time Volume by Price (VBP) chart data updates from Sierra Chart.
-    
+
     This class manages a persistent subscription to Sierra Chart for continuous VBP data
     updates. Unlike one-time data fetches, a subscription provides an ongoing stream of
     chart data as bars form and complete. The class handles subscription initialization,
     update retrieval from a response queue, and data processing into analysis-ready format.
-    
+
     The subscription workflow:
     1. Initialize with desired parameters (historical depth, update frequency, etc.)
     2. Automatically establishes subscription and receives initial historical bars
     3. Continuously receives incremental updates as new bars form/complete
     4. Processes each update by flattening VBP structure and normalizing columns
     5. Returns processed data through get_subscribed_vbp_chart_data() method
-    
+
     Update modes:
     - on_bar_close=True: Updates only when bars complete (default, more stable)
     - on_bar_close=False: Updates on every tick (higher frequency, live data)
-    
+
     Attributes:
         bridge (SCBridge): Active connection instance for communicating with Sierra Chart.
             Manages the WebSocket/TCP connection and message queue.
@@ -108,23 +108,23 @@ class SubscribeToVbpChartData:
             on every tick (False). True reduces update frequency. Default is True.
         chart_data_id (int): Unique subscription ID assigned by Sierra Chart bridge.
             Used to filter the correct updates from the response queue.
-    
+
     Example:
         >>> # Real-time monitoring with custom settings
         >>> subscriber = SubscribeToVbpChartData(
         ...     historical_init_bars=100,
         ...     on_bar_close=True
         ... )
-        >>> 
+        >>>
         >>> # Process updates in a loop
         >>> while True:
         ...     df = subscriber.get_subscribed_vbp_chart_data()
         ...     print(f"Close: {df['Close'].iloc[-1]}")
         ...     print(f"RVOL: {df['RVOL'].iloc[-1]}")
-        >>> 
+        >>>
         >>> # Cleanup
         >>> subscriber.stop_bridge()
-    
+
     Note:
         - Subscription starts automatically in __init__
         - Updates are queued and retrieved with get_subscribed_vbp_chart_data()
@@ -189,7 +189,7 @@ class SubscribeToVbpChartData:
     ) -> None:
         """
         Initialize the SubscribeToVbpChartData instance and start the subscription.
-        
+
         Sets up the Sierra Chart bridge connection, configures subscription parameters,
         and immediately establishes the subscription to begin receiving data. The initial
         response will contain historical_init_bars for context, followed by continuous
@@ -211,25 +211,25 @@ class SubscribeToVbpChartData:
             on_bar_close (bool, optional): Whether updates occur only on bar close.
                 Defaults to True. True = updates when bars complete (stable, recommended).
                 False = updates on every tick (high frequency, for advanced use).
-        
+
         Returns:
             None
-        
+
         Example:
             >>> # Default settings (50 historical bars, updates on bar close)
             >>> sub1 = SubscribeToVbpChartData()
-            >>> 
+            >>>
             >>> # Custom settings for more history
             >>> sub2 = SubscribeToVbpChartData(historical_init_bars=200)
-            >>> 
+            >>>
             >>> # Tick-by-tick updates for HFT
             >>> sub3 = SubscribeToVbpChartData(on_bar_close=False)
-            >>> 
+            >>>
             >>> # Shared bridge for multiple subscriptions
             >>> shared_bridge = SCBridge()
             >>> sub4 = SubscribeToVbpChartData(bridge=shared_bridge)
             >>> sub5 = SubscribeToVbpChartData(bridge=shared_bridge)
-        
+
         Note:
             - Subscription starts IMMEDIATELY in __init__ (not lazy)
             - First call to get_subscribed_vbp_chart_data() returns initial historical bars
@@ -241,14 +241,17 @@ class SubscribeToVbpChartData:
         logger.debug("Initializing SubscribeToVbpChartData class")
 
         # Assign the bridge parameter or create a new SCBridge if none was provided
-        # The ternary expression checks if bridge is not None and uses it, otherwise instantiates new
+        # The ternary expression checks if bridge is not None and reuses it
+        # Falls back to instantiating a fresh bridge when no shared instance exists
         # This pattern enables both standalone usage and connection sharing scenarios
         self.bridge = bridge if bridge is not None else SCBridge()
 
         # Assign the columns_to_drop parameter or use default list with 'IsBarClosed'
-        # IsBarClosed is a helper column that indicates if a bar is complete (True) or forming (False)
-        # It's typically not needed in final analysis, so we remove it by default
-        self.columns_to_drop = columns_to_drop if columns_to_drop is not None else ['IsBarClosed']
+        # IsBarClosed indicates whether a bar is complete (True) or still forming (False)
+        # Omit it by default because downstream analytics rarely need this helper flag
+        self.columns_to_drop = (
+            columns_to_drop if columns_to_drop is not None else ['IsBarClosed']
+        )
 
         # Store the number of historical bars to include in the initial subscription response
         # This provides historical context when the subscription first starts
@@ -265,27 +268,27 @@ class SubscribeToVbpChartData:
         # False: updates sent on every tick (real-time, high frequency)
         self.on_bar_close = on_bar_close
 
-        # Establish the subscription to Sierra Chart and store the returned subscription ID
-        # This ID is used to identify which updates belong to this subscription
-        # The subscribe_to_vbp_chart_data() method sends the subscription request
-        # Sierra Chart responds with a unique ID that we save for filtering updates
+    # Establish the subscription to Sierra Chart and store the returned subscription ID
+    # This ID is used to identify which updates belong to this subscription
+    # The subscribe_to_vbp_chart_data() method sends the subscription request
+    # Sierra Chart responds with a unique ID that we save for filtering updates
         self.chart_data_id = self.subscribe_to_vbp_chart_data()
 
     def subscribe_to_vbp_chart_data(self) -> int:
         """
         Establish a subscription to VBP chart data from Sierra Chart.
-        
+
         This method sends a subscription request to Sierra Chart, specifying which data
         fields, indicators, and parameters to include in the continuous data stream.
         Sierra Chart responds with a unique subscription ID that identifies this stream.
-        
+
         The subscription includes:
         - Base OHLCV data (Open, High, Low, Close, Volume)
         - Volume by Price distribution for each bar
         - Study indicators (Relative Volume, Daily OHLC)
         - Initial historical bars for context
         - Configuration for update frequency
-        
+
         Unlike get_chart_data() which is one-time, this establishes a persistent stream
         that continues until explicitly stopped with stop_bridge().
 
@@ -293,11 +296,11 @@ class SubscribeToVbpChartData:
             int: Unique subscription ID assigned by Sierra Chart. This ID is used to
                 identify and filter updates from the response queue. Multiple subscriptions
                 can coexist with different IDs.
-        
+
         Raises:
             ConnectionError: If bridge cannot connect to Sierra Chart.
             ValueError: If subscription request fails or returns invalid ID.
-        
+
         Example:
             >>> subscriber = SubscribeToVbpChartData.__new__(SubscribeToVbpChartData)
             >>> subscriber.bridge = SCBridge()
@@ -306,7 +309,7 @@ class SubscribeToVbpChartData:
             >>> subscriber.on_bar_close = True
             >>> sub_id = subscriber.subscribe_to_vbp_chart_data()
             >>> print(f"Subscription ID: {sub_id}")
-        
+
         Note:
             - This method is called automatically by __init__
             - The subscription starts immediately and begins queuing data
@@ -337,7 +340,7 @@ class SubscribeToVbpChartData:
             # Subgraph 1 returns the RVOL value (ratio of current volume to typical volume)
             # Used to identify abnormal volume activity and potential breakouts
             SubgraphQuery(study_id=6, subgraphs=[1]),
-            
+
             # Study ID 4: Daily High, Low, Open levels
             # Subgraph 1: Today's opening price (first trade of the session)
             # Subgraph 2: Today's highest price (intraday high)
@@ -390,22 +393,22 @@ class SubscribeToVbpChartData:
     def process_vbp_chart_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Process and flatten raw VBP chart data from subscription updates.
-        
+
         This method transforms the nested VolumeByPrice structure from Sierra Chart
         subscription updates into a flat, tabular format suitable for analysis. Each
         bar's VBP data (a list of price levels with volume distributions) is exploded
         into separate rows, creating multiple rows per time bar.
-        
+
         This is identical to the processing in get_vbp_chart_data module, ensuring
         consistent data structure whether fetching once or subscribing continuously.
-        
+
         The processing pipeline:
         1. Extract nested VBP lists and convert to individual DataFrames
         2. Concatenate all VBP data with DateTime keys
         3. Sort by time and price for consistent ordering
         4. Join VBP data back with OHLCV and indicator data
         5. Clean up helper columns and normalize column names
-        
+
         Args:
             df (pd.DataFrame): Raw chart data from subscription update containing
                 nested VolumeByPrice column. Expected to have DateTime index and
@@ -418,18 +421,18 @@ class SubscribeToVbpChartData:
                 - Original OHLCV columns (Open, High, Low, Close, Volume)
                 - Indicator columns (RVOL, TodayOpen, TodayHigh, TodayLow)
                 - Sorted by DateTime then Price for consistent structure
-        
+
         Raises:
             KeyError: If expected columns (VolumeByPrice, study columns) are missing.
             ValueError: If VolumeByPrice contains invalid nested structure.
-        
+
         Example:
             >>> subscriber = SubscribeToVbpChartData()
             >>> raw_update = subscriber.bridge.get_response_queue().get()
             >>> raw_df = raw_update.as_df()
             >>> processed_df = subscriber.process_vbp_chart_data(raw_df)
             >>> print(processed_df[['Price', 'TotalVolume', 'Close']].tail())
-        
+
         Note:
             - Output DataFrame has MORE rows than input (one row per price level per bar)
             - DateTime index will have repeated values (multiple price levels per time)
@@ -437,13 +440,13 @@ class SubscribeToVbpChartData:
             - This method is called internally by get_subscribed_vbp_chart_data()
         """
 
-        # Define nested helper function to convert a single bar's VBP data into a DataFrame
-        # This function is called for each bar's VolumeByPrice list to create individual DataFrames
-        # Takes a list of lists where each inner list is [Price, BidVol, AskVol, TotalVolume, NumOfTrades]
+    # Define nested helper to convert a single bar's VBP data into a DataFrame
+    # Called for each bar's VolumeByPrice list to create per-bar DataFrames
+    # Input format: [Price, BidVol, AskVol, TotalVolume, NumOfTrades] for each price level
         def vbp_to_df(vbp_data: list[list[Any]]) -> pd.DataFrame:
             """
             Convert a single bar's VolumeByPrice nested list into a tabular DataFrame.
-            
+
             Each bar from Sierra Chart contains a VolumeByPrice field with nested data
             showing how volume was distributed across different price levels. This helper
             flattens that nested structure into a DataFrame with named columns.
@@ -458,7 +461,7 @@ class SubscribeToVbpChartData:
                 pd.DataFrame: DataFrame with columns ['Price', 'BidVol', 'AskVol',
                     'TotalVolume', 'NumOfTrades'] where each row is a price level
                     from the input bar.
-            
+
             Example:
                 >>> vbp_data = [[100.0, 10, 15, 25, 5], [100.5, 20, 10, 30, 8]]
                 >>> result = vbp_to_df(vbp_data)
@@ -532,30 +535,25 @@ class SubscribeToVbpChartData:
         # errors='ignore' prevents errors if specified columns don't exist
         # This cleanup step removes temporary/internal columns not needed for analysis
         combined_df.drop(columns=self.columns_to_drop, inplace=True, errors='ignore')
-        
+
         # Standardize column names to match project conventions and improve readability
         # Maps Sierra Chart's internal column names to more intuitive names
         # inplace=True modifies the DataFrame directly without creating a copy
-        combined_df.rename(columns={
-            # Rename 'Last' to 'Close' - more commonly used term for closing/last price
-            'Last': 'Close',
-            
-            # Study ID 6, Subgraph 1: Relative Volume indicator
-            # RVOL shows current volume relative to average (e.g., 1.5 = 50% above average)
-            'ID6.SG1': 'RVOL',
-            
-            # Study ID 4, Subgraph 1: Today's session opening price
-            # First trade price of the current trading day
-            'ID4.SG1': 'TodayOpen',
-            
-            # Study ID 4, Subgraph 2: Today's session high price
-            # Highest price reached during current trading day
-            'ID4.SG2': 'TodayHigh',
-            
-            # Study ID 4, Subgraph 3: Today's session low price
-            # Lowest price reached during current trading day
-            'ID4.SG3': 'TodayLow',
-        }, inplace=True)
+        combined_df.rename(
+            columns={
+                # Rename 'Last' to 'Close' to use the more common terminology
+                'Last': 'Close',
+                # Study 6 / Subgraph 1: Relative volume ratio ( >1 means above average)
+                'ID6.SG1': 'RVOL',
+                # Study 4 / Subgraph 1: Opening price for the current trading session
+                'ID4.SG1': 'TodayOpen',
+                # Study 4 / Subgraph 2: Intraday high for the current session
+                'ID4.SG2': 'TodayHigh',
+                # Study 4 / Subgraph 3: Intraday low for the current session
+                'ID4.SG3': 'TodayLow',
+            },
+            inplace=True,
+        )
 
         # Return the fully processed, flattened, and normalized DataFrame
         # Ready for analysis, visualization, and feature engineering
@@ -565,12 +563,12 @@ class SubscribeToVbpChartData:
     def get_subscribed_vbp_chart_data(self) -> pd.DataFrame:
         """
         Retrieve the next available chart data update from the subscription queue.
-        
+
         This method blocks until a new update is available from the Sierra Chart
         subscription, then retrieves it from the response queue, processes it into
         analysis-ready format, and returns it. This is the main method for consuming
         the subscription data stream.
-        
+
         The method operates in a blocking loop:
         1. Access the bridge's response queue
         2. Wait for next response (blocks if queue is empty)
@@ -578,7 +576,7 @@ class SubscribeToVbpChartData:
         4. If not a match, discard and continue waiting
         5. If match, convert to DataFrame and process
         6. Return processed data to caller
-        
+
         This blocking behavior is intentional - it ensures your application processes
         updates in order without missing data or overwhelming the system with polling.
 
@@ -589,31 +587,31 @@ class SubscribeToVbpChartData:
                 - VBP columns (Price, BidVol, AskVol, TotalVolume, NumOfTrades)
                 - Indicator columns (RVOL, TodayOpen, TodayHigh, TodayLow)
                 - Sorted by DateTime then Price
-                
+
                 First call returns historical_init_bars for context.
                 Subsequent calls return realtime_update_bars (typically 1 bar).
-        
+
         Raises:
             KeyboardInterrupt: If user interrupts with Ctrl+C (propagates up).
             Exception: If queue retrieval or processing fails.
-        
+
         Example:
             >>> subscriber = SubscribeToVbpChartData()
-            >>> 
+            >>>
             >>> # Process first update (historical context)
             >>> initial_data = subscriber.get_subscribed_vbp_chart_data()
             >>> print(f"Initial bars: {len(initial_data)}")
-            >>> 
+            >>>
             >>> # Process real-time updates in a loop
             >>> while True:
             ...     update = subscriber.get_subscribed_vbp_chart_data()
             ...     print(f"New bar close: {update['Close'].iloc[-1]}")
             ...     print(f"RVOL: {update['RVOL'].iloc[-1]}")
-            ...     
+            ...
             ...     # Your trading logic here
             ...     if update['RVOL'].iloc[-1] > 2.0:
             ...         print("High volume alert!")
-        
+
         Note:
             - This method BLOCKS until new data arrives
             - First call returns historical bars (context)
@@ -668,24 +666,24 @@ class SubscribeToVbpChartData:
     def stop_bridge(self) -> None:
         """
         Stop and clean up the Sierra Chart subscription and bridge connection.
-        
+
         This method properly terminates the subscription, closes the connection to
         Sierra Chart, and releases resources. Should be called when done receiving
         updates to ensure graceful shutdown and prevent resource leaks.
-        
+
         Best practice is to call this in a finally block or exception handler to
         ensure cleanup happens even if errors occur during data processing.
-        
+
         Returns:
             None
-        
+
         Example:
             >>> # Basic usage
             >>> subscriber = SubscribeToVbpChartData()
             >>> df = subscriber.get_subscribed_vbp_chart_data()
             >>> # ... process data ...
             >>> subscriber.stop_bridge()
-            >>> 
+            >>>
             >>> # With error handling (recommended)
             >>> subscriber = SubscribeToVbpChartData()
             >>> try:
@@ -696,12 +694,12 @@ class SubscribeToVbpChartData:
             ...     print("Stopping subscription...")
             >>> finally:
             ...     subscriber.stop_bridge()
-            >>> 
+            >>>
             >>> # Context manager pattern (if implemented)
             >>> with SubscribeToVbpChartData() as subscriber:
             ...     while True:
             ...         df = subscriber.get_subscribed_vbp_chart_data()
-        
+
         Note:
             - Always call this method when done to prevent resource leaks
             - After calling stop_bridge(), the subscription cannot be reused

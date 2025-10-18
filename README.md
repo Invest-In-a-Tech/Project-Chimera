@@ -1,6 +1,6 @@
 # Project Chimera — The Pursuit of Statistical Edge
 
-*"In the pursuit of excellence, there is no finish line."*  
+*"In the pursuit of excellence, there is no finish line."*
 —Roy Williams
 
 ---
@@ -13,7 +13,7 @@ It makes no sense to predict the **closing price** of an asset—the close is ju
 I've also learned I was asking the wrong questions (a skill I learned while studying Thinking Strategies) when building tech to "become profitable." Now I'm focused on the right ones: **Where are the repeatable patterns that create high-probability setups, and how do we validate them?**
 
 **My two edges:**
-1) I can build and evaluate AI/ML tools.  
+1) I can build and evaluate AI/ML tools.
 2) I understand market mechanics and microstructure.
 
 Project Chimera combines these edges to find patterns worth trading. It starts **not** as a fully automated system (and may never be). It's a research pipeline where **human + AI** collaborate to surface and test edges.
@@ -75,7 +75,7 @@ Discover repeatable, high-probability setups in ES Futures by combining:
 
 ### Tech Stack
 - **Python 3.13** with `uv` package management
-- **pandas** for data manipulation and analysis  
+- **pandas** for data manipulation and analysis
 - **trade29-scpy** for Sierra Chart data bridge
 - **Sierra Chart** as primary data source for ES Futures
 
@@ -93,7 +93,7 @@ pywin32==311           # Windows integration
 
 ### Prerequisites
 1. **Sierra Chart** (version 2626+) with ES Futures data feed
-2. **Python 3.13+** 
+2. **Python 3.13+**
 3. **uv** package manager (recommended) or pip
 4. **Windows 10/11** (required for Sierra Chart bridge)
 
@@ -170,8 +170,8 @@ uv run main.py process-data --help
 The data extraction will create CSV files containing:
 - **DateTime**: Bar timestamps (indexed)
 - **OHLCV Data**: Open, High, Low, Close, Volume for each time period
-- **VBP Profile Data**: 
-  - **Price**: Each price level in the VBP profile  
+- **VBP Profile Data**:
+  - **Price**: Each price level in the VBP profile
   - **BidVol/AskVol**: Volume breakdown by market side
   - **TotalVolume**: Total volume at each price
   - **NumOfTrades**: Number of trades at each price
@@ -320,7 +320,7 @@ Project-Chimera/
 │   ├── raw/dataframes/           # Extracted datasets
 │   └── processed/                # Pipeline-processed data (created as needed)
 ├── docs/
-│   ├── logbook/                  # Daily research logs  
+│   ├── logbook/                  # Daily research logs
 │   └── templates/                # Experiment templates
 ├── notebooks/                    # Jupyter analysis notebooks
 └── main.py                       # CLI entry point

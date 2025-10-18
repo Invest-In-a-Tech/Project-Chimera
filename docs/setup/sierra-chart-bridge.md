@@ -113,7 +113,7 @@ except Exception as e:
 
 #### 2. "Bridge connection failed" Error
 - **Cause**: Sierra Chart DLL not installed or SC not running
-- **Solution**: 
+- **Solution**:
   - Ensure Sierra Chart is running
   - Verify DLL is in correct Data folder
   - Restart Sierra Chart after DLL installation

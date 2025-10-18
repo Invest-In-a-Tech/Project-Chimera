@@ -29,7 +29,7 @@ Primary class for extracting historical Volume by Price data from Sierra Chart.
 ```python
 GetVbpData(
     bridge: Optional[SCBridge] = None,
-    columns_to_drop: Optional[List[str]] = None, 
+    columns_to_drop: Optional[List[str]] = None,
     historical_bars: int = 1000000
 )
 ```
@@ -84,7 +84,7 @@ Processes raw chart data into analysis-friendly format.
 **VBP Columns (per price level):**
 - `Price`: Price level
 - `BidVol`: Volume on bid side
-- `AskVol`: Volume on ask side  
+- `AskVol`: Volume on ask side
 - `TotalVolume`: Total volume at price level
 - `NumOfTrades`: Number of trades at price level
 

@@ -9,14 +9,14 @@
 
 ## Run
 - Code/Notebook: `src/project_chimera/data_sources/get_vbp_downloader.py`
-- Params: 
+- Params:
   - historical_bars: 1,000,000 (default)
   - include_volume_by_price: True
   - Studies: RVOL (ID6.SG1), Today OHLC (ID4.SG1-3), Large Trades (ID9.SG1-4)
 - Environment: Python 3.13, trade29-scpy==1.0.2, pandas==2.3.2
 
 ## Results
-- Findings: 
+- Findings:
   - Successfully extracted VBP data with price-level volume breakdown
   - VBP profiles contain: Price, BidVol, AskVol, TotalVolume, NumOfTrades
   - Integration with OHLCV and market indicators (RVOL, Today levels)
@@ -28,7 +28,7 @@
 
 ## Notes
 - Surprises: VBP data structure more complex than expected (nested arrays per bar)
-- Next questions: 
+- Next questions:
   - What VBP features best capture auction behavior?
   - How does VBP profile shape correlate with price movement?
   - What's the optimal way to aggregate VBP data across timeframes?
