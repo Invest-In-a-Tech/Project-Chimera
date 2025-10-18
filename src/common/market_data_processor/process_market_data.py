@@ -160,7 +160,7 @@ class ProcessMarketData:
             # Subtract i from current_index to go backward in time
             # Example: if current_index=10 and i=2, retrieves timestamp at position 8
             previous_timestamp = timestamps[current_index - i]
-            
+
             # Verify that the calculated previous_timestamp exists in the DataFrame index
             # This check handles cases where data might be missing or index is sparse
             if previous_timestamp not in vbp_chart_data_df.index:
@@ -169,12 +169,12 @@ class ProcessMarketData:
                 logging.warning("Missing data for timestamp: %s", previous_timestamp)
                 # Skip to the next iteration without adding data for this period
                 continue
-            
+
             # Retrieve the data row corresponding to the previous timestamp
             # .loc returns either a Series (single row) or DataFrame (multiple rows with same index)
             # Returns: pd.Series or pd.DataFrame depending on index uniqueness
             previous_data = vbp_chart_data_df.loc[previous_timestamp]
-            
+
             # Validate and normalize the data structure to ensure it's a pandas Series
             # This handles the case where .loc might return a DataFrame if timestamp isn't unique
             if isinstance(previous_data, pd.DataFrame) and not previous_data.empty:
@@ -191,19 +191,19 @@ class ProcessMarketData:
                 logging.warning("Invalid data structure for timestamp: %s", previous_timestamp)
                 # Continue to next iteration without adding data for this period
                 continue
-            
+
             # Initialize a new dictionary entry for this historical period
             # Key format: 't-1', 't-2', 't-3', etc. (t-i where i is periods back)
             # Start with just the timestamp to establish the time reference
             self.market_data[f't-{i}'] = {'timestamp': previous_timestamp}
-            
+
             # Iterate through all columns in the previous_data Series
             # and populate the historical period dictionary with all market data fields
             for column in previous_data.index:
                 # Store each column's historical value in the period's dictionary
                 # Example: self.market_data['t-1']['Close'] = 148.50
                 self.market_data[f't-{i}'][column] = previous_data[column]
-        
+
         # Return the fully populated market_data dictionary containing current and historical data
         # This dictionary can now be used for feature engineering, analysis, or ML model input
         return self.market_data
