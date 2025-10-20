@@ -356,7 +356,7 @@ class SubscribeToVbpChartData:
             # Unique key identifier for this subscription stream
             # Used by the bridge to track and manage multiple concurrent subscriptions
             # Can be any string, typically describes the chart or timeframe
-            key='1minkey',
+            key='15minkey',
 
             # Enable Volume by Price data in all updates
             # This adds the VolumeByPrice column with nested price distribution data
@@ -725,7 +725,8 @@ class SubscribeToVbpChartData:
 #         while True:
 #             vbp_chart_data_df = subscribe_to_chart_data.get_subscribed_vbp_chart_data()
 #             if vbp_chart_data_df is not None:
-#                 logger.debug(f"VBP chart data (last 10 rows):\n{vbp_chart_data_df.tail(10)}")
+#                 logger.info(f"VBP chart data (last 10 rows):\n{vbp_chart_data_df.tail(10)}")
+#                 print(vbp_chart_data_df.tail(30))
 
 #     except KeyboardInterrupt:
 #         logger.info("Stopping subscription and exiting...")
