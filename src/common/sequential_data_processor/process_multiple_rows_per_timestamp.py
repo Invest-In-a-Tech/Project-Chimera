@@ -26,7 +26,7 @@ from datetime import datetime
 import pandas as pd
 
 # Local imports
-from common.sequential_data_processor.process_each_row import ProcessEachRow
+from src.common.sequential_data_processor.process_each_row import ProcessEachRow
 
 class ProcessMultipleRowsPerTimestamp:
     """

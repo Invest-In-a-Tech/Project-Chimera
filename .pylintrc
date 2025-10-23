@@ -1,0 +1,125 @@
+[MASTER]
+# Use multiple processes to speed up Pylint
+jobs=4
+
+# Pickle collected data for later comparisons
+persistent=yes
+
+# List of plugins (as comma separated values of python module names) to load
+load-plugins=
+
+# Use a conservative score threshold
+fail-under=8.0
+
+[MESSAGES CONTROL]
+# Disable specific warnings that are not relevant for this project
+disable=
+    # Allow TODO comments in research code
+    fixme,
+    # Allow short variable names in data science code (df, X, y, etc.)
+    invalid-name,
+    # Allow too many local variables in data processing functions
+    too-many-locals,
+    # Allow too many arguments in configuration-heavy functions
+    too-many-arguments,
+    # Allow too many statements in comprehensive processing functions
+    too-many-statements,
+    # Allow too many branches in mode-selection logic
+    too-many-branches,
+    # Allow missing module docstrings in __init__.py files
+    missing-module-docstring,
+    # Allow too many instance attributes in data classes
+    too-many-instance-attributes,
+    # Allow line too long for detailed comments
+    line-too-long,
+
+[REPORTS]
+# Set the output format
+output-format=colorized
+
+# Evaluate score
+score=yes
+
+[BASIC]
+# Good variable names (including common data science abbreviations)
+good-names=i,j,k,ex,Run,_,df,X,y,ax,fig,lr,sc,e,t
+
+# Regular expressions for acceptable variable names
+variable-rgx=[a-z_][a-z0-9_]{1,30}$
+const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
+
+# Allow single-letter variable names in list comprehensions
+argument-rgx=[a-z_][a-z0-9_]{1,30}$
+
+[FORMAT]
+# Maximum number of characters on a single line
+max-line-length=100
+
+# Maximum number of lines in a module
+max-module-lines=1000
+
+# String used for indentation
+indent-string='    '
+
+# Expected format of line ending
+expected-line-ending-format=LF
+
+[DESIGN]
+# Maximum number of arguments for function / method
+max-args=8
+
+# Maximum number of locals for function / method body
+max-locals=20
+
+# Maximum number of return / yield for function / method body
+max-returns=6
+
+# Maximum number of branch for function / method body
+max-branches=15
+
+# Maximum number of statements in function / method body
+max-statements=60
+
+# Maximum number of attributes for a class
+max-attributes=12
+
+# Minimum number of public methods for a class
+min-public-methods=1
+
+[IMPORTS]
+# Allow wildcard imports from typing module
+allow-wildcard-with-all=no
+
+# Deprecated modules which should not be used
+deprecated-modules=optparse,imp
+
+[TYPECHECK]
+# List of members which are set dynamically and missed by Pylint
+generated-members=
+
+# List of classes names for which member attributes should not be checked
+ignored-classes=
+
+[SIMILARITIES]
+# Minimum lines number of a similarity
+min-similarity-lines=6
+
+# Ignore comments when computing similarities
+ignore-comments=yes
+
+# Ignore docstrings when computing similarities
+ignore-docstrings=yes
+
+# Ignore imports when computing similarities
+ignore-imports=yes
+
+[VARIABLES]
+# Tells whether we should check for unused import in __init__ files
+init-import=no
+
+# A regular expression matching the name of dummy variables
+dummy-variables-rgx=_$|dummy|unused
+
+[EXCEPTIONS]
+# Exceptions that will emit a warning when being caught
+overgeneral-exceptions=builtins.BaseException,builtins.Exception

@@ -205,18 +205,36 @@ uv run main.py download-vbp [--output PATH]
 - Default output: `data/raw/dataframes/volume_by_price_data.csv`
 
 #### `process-data`
-Process data through the data pipeline:
+Process data through the data pipeline with multiple modes:
 ```powershell
-uv run main.py process-data [--input PATH] [--output PATH]
+uv run main.py process-data [--input PATH] [--output PATH] [--mode MODE]
 ```
 - `--input, -i`: Input CSV file path (optional, defaults to latest VBP data)
 - `--output, -o`: Output CSV file path (optional, displays to console if not specified)
+- `--mode, -m`: Pipeline mode - `training`, `live`, or `auto` (default: `auto`)
+
+**Pipeline Modes:**
+- **training**: File-based processing for model training and backtesting
+- **live**: Process real-time data from external sources (see [Live Mode Architecture](docs/setup/live-mode-architecture.md))
+- **auto**: Automatically detect mode based on configuration
 
 **What it does:**
 - Loads data using the DataPipelineRunner
 - Applies data processing and transformation
 - Provides comprehensive logging and error handling
 - Returns processed DataFrame ready for analysis
+
+**Live Mode Example:**
+```powershell
+# Start real-time Sierra Chart data streaming
+uv run main.py process-data --mode live
+
+# This will:
+# 1. Connect to Sierra Chart
+# 2. Fetch initial historical data
+# 3. Display real-time updates as they arrive
+# 4. Optionally save to file with --output
+```
 
 #### `status`
 Display project status and available data files:
@@ -258,25 +276,53 @@ uv run main.py process-data \
 
 ---
 
-## Data Pipeline Architecture
+### Data Pipeline Architecture
 
-The data pipeline provides a robust, modular approach to processing financial data:
+The data pipeline provides a robust, modular approach to processing financial data with support for both historical and real-time data sources.
+
+### Pipeline Modes
+
+The pipeline supports three operational modes:
+
+1. **Training Mode**: File-based processing for ML model training, backtesting, and historical analysis
+   - Reads historical data from CSV files
+   - Reproducible results with static datasets
+   - Ideal for model development and strategy testing
+
+2. **Live Mode**: Real-time data processing with external data sources
+   - Modular architecture with separated subscription management
+   - Clean integration with Sierra Chart via SierraChartSubscriptionManager
+   - Pipeline focuses on feature engineering only
+   - Production-ready for active trading systems
+   - See [Live Mode Architecture](docs/setup/live-mode-architecture.md) for detailed usage
+
+3. **Auto Mode**: Intelligent mode detection based on configuration
+   - Automatically selects training or live mode
+   - Simplifies deployment and configuration
 
 ### Key Components
 
-1. **DataPipelineRunner**: Main orchestrator class
-   - Handles both live data streams and file-based processing
+1. **DataPipelineRunner**: Feature engineering pipeline
+   - Processes DataFrame inputs for ML model consumption
+   - Supports multiple pipeline modes (training, live, auto)
    - Comprehensive logging and error handling
    - Type-safe configuration management
+   - Works with external data sources (does NOT manage subscriptions)
 
 2. **DataFrameProcessor**: Specialized CSV data processor
    - Financial data-specific transformations
    - Time-series handling and filtering
    - Market hours and datetime processing
 
+3. **SubscribeToVbpChartData**: Real-time Sierra Chart integration
+   - Persistent subscription to VBP data streams
+   - Configurable update frequency (bar-close or tick-by-tick)
+   - Proper resource management and cleanup
+
 ### Pipeline Features
 
-- **Flexible Input Sources**: File paths or live DataFrames
+- **Flexible Input Sources**: File paths, DataFrames, or Sierra Chart streams
+- **Multi-Mode Support**: Training, live, or auto-detection
 - **Robust Error Handling**: Detailed error messages and graceful failure
 - **Comprehensive Logging**: Full audit trail of processing steps
 - **Type Safety**: Full type hints and validation
@@ -284,12 +330,13 @@ The data pipeline provides a robust, modular approach to processing financial da
 
 ### Usage in Code
 
+**Training Mode (Historical Data):**
 ```python
-from src.common.data_pipeline.run_data_pipeline import DataPipelineRunner
+from src.common.data_pipeline.run_data_pipeline import DataPipelineRunner, PipelineMode
 
 # Configure for file processing
 config = {'file_path': 'data/raw/dataframes/market_data.csv'}
-pipeline = DataPipelineRunner(config)
+pipeline = DataPipelineRunner(config, PipelineMode.TRAINING)
 
 # Run the pipeline
 processed_df = pipeline.run_pipeline()
@@ -298,6 +345,47 @@ processed_df = pipeline.run_pipeline()
 info = pipeline.get_data_info()
 print(f"Processed {info['shape'][0]} rows from {info['data_source']} source")
 ```
+
+**Live Mode (Real-Time Sierra Chart):**
+```python
+from src.common.sierra_chart_manager import SierraChartSubscriptionManager, ResponseProcessor
+from src.common.data_pipeline.run_data_pipeline import DataPipelineRunner, PipelineMode
+
+# Initialize components with separated concerns
+manager = SierraChartSubscriptionManager()
+processor = ResponseProcessor()
+pipeline = DataPipelineRunner({}, PipelineMode.LIVE)
+
+try:
+    # Subscribe to Sierra Chart VBP data
+    request_id = manager.subscribe_vbp_chart_data(
+        historical_bars=50,
+        realtime_bars=1,
+        on_bar_close=True
+    )
+    
+    # Process real-time updates
+    while True:
+        response = manager.get_next_response()  # Blocks until new data
+        
+        # Transform raw response to DataFrame
+        df = processor.process_vbp_response(response)
+        
+        # Engineer features through pipeline
+        config = {'df': df}
+        processed_df = pipeline.run_pipeline(config)
+        
+        print(f"New bar @ {processed_df.index[-1]}: Close={processed_df['Close'].iloc[-1]}")
+        
+        # Your ML model inference here
+        
+except KeyboardInterrupt:
+    print("Stopping...")
+finally:
+    manager.stop_all_subscriptions()  # Always clean up
+```
+
+For complete live mode documentation with architecture diagrams and examples, see [docs/setup/live-mode-architecture.md](docs/setup/live-mode-architecture.md).
 
 ---
 
@@ -310,9 +398,14 @@ Project-Chimera/
 │   │   ├── data_sources/         # Data extraction & preprocessing
 │   │   └── features/             # Feature engineering (planned)
 │   ├── common/                   # Shared utilities
-│   │   └── data_pipeline/        # Data processing pipeline
-│   │       ├── run_data_pipeline.py    # Main pipeline orchestrator
-│   │       └── dataframe_processor.py  # Data processing utilities
+│   │   ├── data_pipeline/        # Data processing pipeline
+│   │   │   ├── run_data_pipeline.py    # Main pipeline orchestrator
+│   │   │   └── dataframe_processor.py  # Data processing utilities
+│   │   ├── sierra_chart_manager/ # Sierra Chart subscription management
+│   │   │   ├── subscription_manager.py # Manages SC subscriptions
+│   │   │   └── response_processor.py   # Processes SC responses
+│   │   ├── sequential_data_processor/  # Granular row processing
+│   │   └── market_data_processor/      # Market data utilities
 │   └── sc_py_bridge/             # Sierra Chart integration
 │       ├── get_vbp_chart_data.py     # Historical data fetcher
 │       └── subscribe_to_vbp_chart_data.py  # Real-time subscriber
@@ -321,9 +414,10 @@ Project-Chimera/
 │   └── processed/                # Pipeline-processed data (created as needed)
 ├── docs/
 │   ├── logbook/                  # Daily research logs
+│   ├── setup/                    # Setup guides (environment, Sierra Chart, live mode)
 │   └── templates/                # Experiment templates
 ├── notebooks/                    # Jupyter analysis notebooks
-└── main.py                       # CLI entry point
+└── main.py                       # CLI entry point (includes live mode)
 ```
 
 ---

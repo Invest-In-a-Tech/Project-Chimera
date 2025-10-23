@@ -110,7 +110,7 @@ class PipelineMode(Enum):
 
         AUTO (str): Automatic mode detection based on configuration.
             The pipeline automatically determines the appropriate mode by examining
-            the configuration. If 'df' or 'sierra_chart_config' exists, uses LIVE mode.
+            the configuration. If 'df' exists, uses LIVE mode.
             If 'file_path' exists, uses TRAINING mode. This is the default mode.
 
     Example:
@@ -159,11 +159,12 @@ class DataPipelineRunner:
         - TRAINING: File-based processing for ML model training and backtesting
           Loads historical data from CSV files for reproducible analysis
 
-        - LIVE: Real-time data processing from Sierra Chart or live DataFrames
-          Processes streaming market data for active trading decisions
+        - LIVE: Real-time data processing from pre-loaded DataFrames
+          Processes streaming market data passed as DataFrame
+          Use SierraChartSubscriptionManager externally for data acquisition
 
         - AUTO: Automatically detect mode based on configuration keys
-          Intelligent selection based on presence of 'file_path', 'df', or 'sierra_chart_config'
+          Intelligent selection based on presence of 'file_path' or 'df'
 
     Attributes:
         config (Dict[str, Any]): Configuration dictionary containing pipeline parameters.
@@ -177,9 +178,8 @@ class DataPipelineRunner:
 
         df (Optional[pd.DataFrame]): DataFrame for live data processing.
             Contains real-time or pre-loaded data for immediate processing.
-
-        sierra_chart_config (Optional[Dict[str, Any]]): Sierra Chart connection configuration.
-            Settings for establishing live data connection (future implementation).
+            For real-time Sierra Chart data, use SierraChartSubscriptionManager
+            externally to fetch and process data, then pass as DataFrame.
 
         data_source (Optional[str]): Source type indicator ('training' or 'live').
             Set during processing to track which data source is active.
@@ -211,9 +211,9 @@ class DataPipelineRunner:
     Note:
         - Configuration must contain appropriate data source for selected mode
         - TRAINING mode requires 'file_path'
-        - LIVE mode requires 'df' or 'sierra_chart_config'
+        - LIVE mode requires 'df' (pre-processed DataFrame from external source)
         - AUTO mode selects based on available keys
-        - Sierra Chart live connection is planned for future release
+        - For Sierra Chart integration, use SierraChartSubscriptionManager externally
     """
 
     def __init__(self, config: Dict[str, Any], mode: PipelineMode = PipelineMode.AUTO) -> None:
@@ -236,24 +236,20 @@ class DataPipelineRunner:
                 - df (pd.DataFrame, optional): Pre-loaded DataFrame for immediate processing.
                   Used in LIVE mode for processing real-time or pre-fetched data.
                   Should contain market data with appropriate columns and index.
-
-                - sierra_chart_config (dict, optional): Configuration for Sierra Chart connection.
-                  Used in LIVE mode for establishing streaming data connection.
-                  Future implementation for direct Sierra Chart integration.
-                  Example: {'host': 'localhost', 'port': 11099}
+                  For Sierra Chart integration, use SierraChartSubscriptionManager
+                  to fetch data, process with ResponseProcessor, then pass here.
 
             mode (PipelineMode, optional): Explicit pipeline mode selection.
                 Defaults to PipelineMode.AUTO for automatic detection.
 
                 - TRAINING: Force file-based processing (requires file_path)
-                - LIVE: Force live data processing (requires df or sierra_chart_config)
+                - LIVE: Force live data processing (requires df)
                 - AUTO: Auto-detect based on config (recommended for flexibility)
 
         Raises:
             TypeError: If config is not a dictionary type.
             ValueError: If mode doesn't match available data sources in configuration.
-                For example, TRAINING mode without file_path, or LIVE mode without
-                df or sierra_chart_config.
+                For example, TRAINING mode without file_path, or LIVE mode without df.
 
         Examples:
             >>> # Training mode with explicit file path
@@ -270,8 +266,14 @@ class DataPipelineRunner:
             >>> config = {'file_path': 'data/market_data.csv'}
             >>> pipeline = DataPipelineRunner(config)  # Uses AUTO mode by default
             >>>
-            >>> # Future: Sierra Chart live connection
-            >>> config = {'sierra_chart_config': {'host': 'localhost', 'port': 11099}}
+            >>> # Sierra Chart live mode (use manager externally)
+            >>> from src.common.sierra_chart_manager import SierraChartSubscriptionManager, ResponseProcessor
+            >>> manager = SierraChartSubscriptionManager()
+            >>> processor = ResponseProcessor()
+            >>> manager.subscribe_vbp_chart_data({'historical_init_bars': 50})
+            >>> response = manager.get_next_response(SubscriptionType.VBP_CHART_DATA)
+            >>> df = processor.process_vbp_response(response)
+            >>> config = {'df': df}
             >>> pipeline = DataPipelineRunner(config, PipelineMode.LIVE)
 
         Note:
@@ -306,11 +308,6 @@ class DataPipelineRunner:
         # None if not provided (valid for TRAINING mode)
         self.df: Optional[pd.DataFrame] = config.get('df')
 
-        # Extract Sierra Chart configuration if present
-        # Used in LIVE mode for establishing streaming data connections
-        # None if not provided (feature planned for future implementation)
-        self.sierra_chart_config: Optional[Dict[str, Any]] = config.get('sierra_chart_config')
-
         # Initialize data source indicator to None
         # Will be set to 'training' or 'live' during processing
         # Tracks which data source is actively being used
@@ -327,7 +324,7 @@ class DataPipelineRunner:
         self._effective_mode: Optional[PipelineMode] = None
 
         # Validate that selected mode is compatible with provided configuration
-        # Ensures TRAINING has file_path and LIVE has df or sierra_chart_config
+        # Ensures TRAINING has file_path and LIVE has df (pre-processed DataFrame)
         # Raises ValueError if validation fails, preventing invalid pipeline execution
         self._validate_mode_config()
 
@@ -364,7 +361,7 @@ class DataPipelineRunner:
 
         Validation rules:
         - TRAINING mode: Must have 'file_path' in configuration
-        - LIVE mode: Must have either 'df' or 'sierra_chart_config'
+        - LIVE mode: Must have 'df' in configuration
         - AUTO mode: No validation (will detect or fail gracefully later)
 
         Raises:
@@ -393,12 +390,15 @@ class DataPipelineRunner:
 
         # Check if LIVE mode was explicitly selected
         elif self.mode == PipelineMode.LIVE:
-            # LIVE mode requires either a DataFrame or Sierra Chart config
-            # Both None means no data source is available for live processing
-            if self.df is None and self.sierra_chart_config is None:
-                # Raise ValueError explaining the two valid options for LIVE mode
+            # LIVE mode requires a DataFrame with data
+            # Sierra Chart integration should be handled externally via
+            # SierraChartSubscriptionManager
+            if self.df is None:
+                # Raise ValueError explaining the requirement
                 raise ValueError(
-                    "Live mode requires either 'df' or 'sierra_chart_config' in configuration"
+                    "Live mode requires 'df' in configuration. "
+                    "Use SierraChartSubscriptionManager to fetch data "
+                    "and pass it as 'df' parameter."
                 )
 
         # AUTO mode doesn't require validation at initialization
@@ -417,7 +417,7 @@ class DataPipelineRunner:
         Auto-detection logic:
         1. If mode is LIVE or TRAINING, return it directly (no detection needed)
         2. If mode is AUTO, examine configuration keys:
-           - If 'df' or 'sierra_chart_config' exists → LIVE mode
+           - If 'df' exists → LIVE mode
            - If 'file_path' exists → TRAINING mode
            - If no valid source exists → raise ValueError
         3. Cache the detected mode for future calls
@@ -459,11 +459,11 @@ class DataPipelineRunner:
         # Check if AUTO mode was selected (requires detection)
         if self.mode == PipelineMode.AUTO:
             # Auto-detect based on available data sources in configuration
-            # Priority: df/sierra_chart_config (LIVE) > file_path (TRAINING)
+            # Priority: df (LIVE) > file_path (TRAINING)
 
-            # Check for LIVE mode indicators (df or Sierra Chart config)
-            # If either exists, this is a live data processing scenario
-            if self.df is not None or self.sierra_chart_config is not None:
+            # Check for LIVE mode indicators (df)
+            # Live data processing uses pre-loaded DataFrame
+            if self.df is not None:
                 # Set effective mode to LIVE and cache it
                 self._effective_mode = PipelineMode.LIVE
 
@@ -508,8 +508,10 @@ class DataPipelineRunner:
         - TRAINING mode: Load and process data from file for ML training/backtesting
           Creates DataFrameProcessor, loads CSV file, performs transformations
 
-        - LIVE mode: Process real-time data from Sierra Chart or provided DataFrame
-          Uses pre-loaded DataFrame or establishes Sierra Chart connection
+        - LIVE mode: Process real-time data from provided DataFrame
+          Uses pre-loaded DataFrame provided in configuration
+          For Sierra Chart integration, use SierraChartSubscriptionManager
+          externally to manage subscriptions and process responses
 
         - AUTO mode: Auto-detect and process based on available data sources
           Intelligently selects appropriate processing path
@@ -605,12 +607,12 @@ class DataPipelineRunner:
             # Check if effective mode is LIVE (real-time processing)
             elif effective_mode == PipelineMode.LIVE:
                 # Live mode: Real-time data processing from active sources
-                # This path handles streaming or pre-loaded live data
+                # This path handles pre-loaded DataFrame data
 
                 # Check if DataFrame was pre-provided in configuration
                 if self.df is not None:
                     # DataFrame already exists, no loading needed
-                    # This is the current implementation for live data
+                    # This is the implementation for live data
                     self.logger.info(
                         "Live mode: Using provided DataFrame for real-time processing"
                     )
@@ -619,24 +621,13 @@ class DataPipelineRunner:
                     # Distinguishes this from training/historical data
                     self.data_source = 'live'
 
-                # Check if Sierra Chart configuration was provided
-                elif self.sierra_chart_config is not None:
-                    # Sierra Chart live connection requested
-                    # This is a planned feature for future implementation
-                    self.logger.info("Live mode: Connecting to Sierra Chart for real-time data")
-
-                    # Log warning that this feature is not yet available
-                    # Helps users understand current limitations
-                    self.logger.warning("Sierra Chart live connection not yet implemented")
-
-                    # Raise NotImplementedError to indicate planned feature
-                    # Clear message informs users this is coming in future release
-                    raise NotImplementedError("Sierra Chart live connection feature coming soon")
-
                 else:
-                    # Neither df nor sierra_chart_config provided in LIVE mode
+                    # Neither df provided in LIVE mode
                     # This shouldn't happen if validation worked, but check anyway
-                    raise ValueError("Live mode requires either 'df' or 'sierra_chart_config'")
+                    raise ValueError(
+                        "Live mode requires 'df' in configuration. "
+                        "Use SierraChartSubscriptionManager to fetch data externally."
+                    )
 
             # Processing completed, log success with data details
             # Check if DataFrame was successfully created/loaded
@@ -664,6 +655,8 @@ class DataPipelineRunner:
             raise
 
         # Handle all other exceptions generically
+        # pylint: disable=broad-exception-caught
+        # Justification: We re-raise immediately after logging for debugging
         except Exception as e:
             # Log error with exception message for debugging
             # Captures any unexpected errors during processing
@@ -762,6 +755,8 @@ class DataPipelineRunner:
             return self.df
 
         # Catch all exceptions and log before re-raising
+        # pylint: disable=broad-exception-caught
+        # Justification: We re-raise immediately after logging for debugging
         except Exception as e:
             # Log error with exception message for debugging
             # Provides visibility into pipeline failures

@@ -4,6 +4,7 @@
 - **[Main README](../README.md)** - Project overview, philosophy, and current status
 - **[Environment Setup](setup/environment.md)** - Installation and configuration guide
 - **[Sierra Chart Bridge Setup](setup/sierra-chart-bridge.md)** - Complete bridge installation guide
+- **[Live Mode Architecture](setup/live-mode-architecture.md)** - Real-time data processing with modular architecture
 - **[Project Structure](#project-structure)** - How the codebase is organized
 
 ## Research Documentation

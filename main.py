@@ -21,16 +21,23 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+# Third-party imports
+import pandas as pd
+
 # Import VBP data class at module level to avoid pylint warnings
 # This allows us to check for import success early and provide better error messages
 try:
     from src.project_chimera.data_sources.get_vbp_downloader import GetVbpData
     from src.common.data_pipeline.run_data_pipeline import DataPipelineRunner, PipelineMode
-except ImportError:
+except ImportError as import_error:
     # Set to None if import fails - will be handled gracefully in the function
     GetVbpData = None
     DataPipelineRunner = None
     PipelineMode = None
+    # Store the import error for later debugging
+    _IMPORT_ERROR = import_error
+else:
+    _IMPORT_ERROR = None
 
 # Configure logging for the CLI with timestamp and structured format
 # This provides clear visibility into CLI operations and any errors that occur
@@ -74,6 +81,9 @@ def download_vbp_data(output_path: Optional[str] = None) -> None:
         # Log error message to inform user about missing dependencies
         logger.error("Cannot import GetVbpData class")
         logger.error("Make sure all dependencies are installed")
+        # Log the specific import error if available for debugging
+        if _IMPORT_ERROR:
+            logger.error("Import error details: %s", _IMPORT_ERROR)
         # Exit with error code 1 to indicate failure to calling process
         sys.exit(1)
 
@@ -132,11 +142,23 @@ def download_vbp_data(output_path: Optional[str] = None) -> None:
     # Catch specific exceptions that might occur during data processing
     # ValueError: Data validation errors, invalid data formats
     # KeyError: Missing expected columns or keys in data structures
-    # IOError: File system errors during CSV writing or directory creation
-    except (ValueError, KeyError, IOError) as e:
+    except (ValueError, KeyError) as validation_error:
         # Log the specific error message to help users troubleshoot issues
         # Use lazy % formatting (not f-strings) for Pylint compliance
-        logger.error("Error downloading VBP data: %s", e)
+        logger.error("Data validation error: %s", validation_error)
+        # Exit with error code 1 to indicate failure to calling process
+        sys.exit(1)
+    # IOError/OSError: File system errors during CSV writing or directory creation
+    except (IOError, OSError) as file_error:
+        # Log file system errors separately for clarity
+        logger.error("File system error: %s", file_error)
+        # Exit with error code 1 to indicate failure to calling process
+        sys.exit(1)
+    except Exception as unexpected_error:  # pylint: disable=broad-except
+        # Catch-all for unexpected errors during bridge communication or processing
+        # Broad exception is necessary here for user-friendly error handling in CLI
+        logger.error("Unexpected error downloading VBP data: %s", unexpected_error)
+        logger.exception("Full traceback:")
         # Exit with error code 1 to indicate failure to calling process
         sys.exit(1)
 
@@ -175,6 +197,9 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
         logger.error(
             "Make sure all dependencies are installed and the pipeline module exists"
         )
+        # Log the specific import error if available for debugging
+        if _IMPORT_ERROR:
+            logger.error("Import error details: %s", _IMPORT_ERROR)
         # Exit with error code 1 to indicate failure to calling process
         sys.exit(1)
 
@@ -208,17 +233,309 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
         # Handle different pipeline modes with appropriate logic
         # Check if user selected live mode (real-time data from Sierra Chart)
         if pipeline_mode == PipelineMode.LIVE:
-            # Live mode requires Sierra Chart integration for real-time processing
-            logger.info("Live mode selected - Sierra Chart integration")
+            # Live mode ONLY streams real-time data from Sierra Chart
+            # No CSV files, no pre-loaded DataFrames - just live streaming
+            logger.info("Live mode selected - Streaming real-time data from Sierra Chart")
 
-            # NOTE: Live mode is a planned feature not yet implemented
-            # Warn user that this functionality is coming in a future release
-            logger.warning("Live mode with Sierra Chart integration is not yet implemented")
-            logger.info(
-                "This feature will connect to Sierra Chart for real-time data processing"
+            # Ignore input_path if provided - live mode doesn't use files
+            if input_path:
+                logger.warning(
+                    "Input file ignored in live mode - live mode only streams from Sierra Chart"
+                )
+
+            # Import Sierra Chart manager components
+            # These imports are inside the function to avoid loading Sierra Chart dependencies
+            # unless live mode is explicitly selected by the user
+            # pylint: disable=import-outside-toplevel
+            try:
+                from src.common.sierra_chart_manager import (
+                    SierraChartSubscriptionManager,
+                    ResponseProcessor
+                )
+                from src.common.sierra_chart_manager.subscription_manager import SubscriptionType
+            except ImportError as e:
+                logger.error("Cannot import Sierra Chart components: %s", e)
+                logger.error("Make sure sierra_chart_manager package is available")
+                sys.exit(1)
+
+            # Connect to Sierra Chart for real-time streaming
+            logger.info("Connecting to Sierra Chart for real-time data streaming...")
+
+            # Initialize Sierra Chart components
+            sc_manager = SierraChartSubscriptionManager()
+            response_processor = ResponseProcessor()
+
+            # Initialize sequential data processor for handling multiple rows per timestamp
+            # This processor is critical for VBP data because each timestamp has multiple rows
+            # (one per price level), and we need granular processing with de-duplication
+            # Import here to avoid loading unless live mode is selected
+            # pylint: disable=import-outside-toplevel
+            from src.common.sequential_data_processor.process_multiple_rows_per_timestamp import (
+                ProcessMultipleRowsPerTimestamp
             )
-            # Exit since live mode cannot proceed without implementation
-            sys.exit(1)
+
+            # Initialize storage list for processed granular data from sequential processor
+            # This list accumulates processed rows for each update cycle
+            # Each row contains: {'current': {...}, 't-1': {...}, 't-2': {...}, etc.}
+            # The 'current' key holds the latest data, 't-1' holds previous bar data, etc.
+            # This structure provides historical context for each granular price level
+            processed_rows_list = []
+
+            # Define callback function to capture processed data from sequential processor
+            # The sequential processor uses callback pattern (not return values) to deliver results
+            # This callback is invoked for each successfully processed row with de-duplication
+            # It captures granular, enriched data with historical lookback context
+            def capture_processed_row(processed_data):
+                """
+                Capture each processed row from the sequential processor.
+
+                This callback receives enriched market data dictionaries containing both
+                current bar data and historical lookback periods (t-1, t-2, etc.).
+                Each row represents a single price level in the VBP distribution.
+
+                Args:
+                    processed_data: Dictionary with structure:
+                        {
+                            'current': {'Open': ..., 'Close': ..., 'Price': ..., 'BidVol': ...},
+                            't-1': {previous bar data},
+                            't-2': {two bars ago data},
+                            ...
+                        }
+                        Returns None if processing failed for that row.
+
+                Side Effects:
+                    Appends valid processed_data to processed_rows_list for downstream use.
+                """
+                # Check if processing returned valid data (not None)
+                # process_rows() may return None if row validation fails or errors occur
+                if processed_data is not None:
+                    # Append the enriched data dictionary to our accumulator list
+                    # This data includes current values plus historical lookback context
+                    # Used later for display, analysis, and trading logic
+                    processed_rows_list.append(processed_data)
+
+            # Create sequential processor instance with callback configured
+            # Pass the capture function as data_callback parameter to enable data flow
+            # The processor will invoke this callback for each successfully processed row
+            # This establishes the data pipeline: processor -> callback -> processed_rows_list
+            sequential_processor = ProcessMultipleRowsPerTimestamp(
+                data_callback=capture_processed_row
+            )
+
+            try:
+                # Subscribe to VBP chart data
+                vbp_config = {
+                    'historical_init_bars': 50,     # Fetch 50 bars of history initially
+                    'realtime_update_bars': 1,      # Get 1 bar per update (latest)
+                    'on_bar_close': True            # Update only on bar close (stable)
+                }
+
+                logger.info("Subscribing to VBP chart data...")
+                vbp_subscription_id = sc_manager.subscribe_vbp_chart_data(vbp_config)
+                logger.info("VBP subscription created (ID: %s)", vbp_subscription_id)
+
+                # Get initial historical data
+                logger.info("Fetching initial historical data from Sierra Chart...")
+                initial_response = sc_manager.get_next_response(SubscriptionType.VBP_CHART_DATA)
+                initial_data = response_processor.process_vbp_response(initial_response)
+
+                # Display initial data summary
+                logger.info("Initial data received - Shape: %s", initial_data.shape)
+                print("\nInitial Sierra Chart Data (Live Mode):")
+                print(f"Shape: {initial_data.shape}")
+                print(f"Date range: {initial_data.index.min()} to {initial_data.index.max()}")
+                print("\nFirst 5 rows:")
+                print(initial_data.head())
+
+                # Run through pipeline for feature engineering
+                pipeline_config = {'df': initial_data}
+                pipeline = DataPipelineRunner(pipeline_config, pipeline_mode)
+                features = pipeline.run_pipeline()
+                logger.info("Initial features engineered: %s", features.shape)
+
+                # Enter real-time processing loop
+                logger.info("\nStarting real-time data processing loop...")
+                logger.info("Press Ctrl+C to stop\n")
+
+                update_count = 0
+                while True:
+                    # Get next update from Sierra Chart (blocks until new data)
+                    response = sc_manager.get_next_response(SubscriptionType.VBP_CHART_DATA)
+                    update_count += 1
+
+                    # Process response to DataFrame (already has VBP structure)
+                    update_df = response_processor.process_vbp_response(response)
+
+                    # Run through pipeline for feature engineering
+                    # Pipeline adds derived features and indicators to the raw VBP data
+                    # The resulting DataFrame maintains multiple rows per timestamp structure
+                    pipeline_config = {'df': update_df}
+                    pipeline = DataPipelineRunner(pipeline_config, pipeline_mode)
+                    features_df = pipeline.run_pipeline()
+
+                    # Clear the processed rows list for this update cycle
+                    # Ensures we only have fresh data for the current update
+                    # Previous update's data is no longer needed since we process sequentially
+                    processed_rows_list.clear()
+
+                    # Process the update through sequential processor with granular approach
+                    # This is critical for VBP data accuracy - processes each price level individually
+                    # The processor handles: de-duplication, historical context, row-by-row enrichment
+                    # Results are delivered via callback (not return value) to processed_rows_list
+                    # Each row gets enriched with lookback data ('t-1', 't-2', etc.)
+                    sequential_processor.process_multiple_rows(features_df)
+
+                    # Process the captured rows from sequential processor
+                    # Check if callback received any processed data (non-empty list)
+                    # processed_rows_list is populated by capture_processed_row() callback
+                    # Each element is a dict with 'current', 't-1', 't-2' keys for historical context
+                    if processed_rows_list:
+                        # Extract timestamp from the first processed row for display header
+                        # All rows in this update share the same timestamp (multiple price levels)
+                        # Access nested structure: row -> 'current' -> 'timestamp'
+                        first_row = processed_rows_list[0]
+                        latest_timestamp = first_row['current']['timestamp']
+
+                        # Display formatted header with update number and timestamp
+                        # Provides clear visual separation between updates in the console
+                        # 80 character separator line matches standard terminal width
+                        print(f"\n{'='*80}")
+                        print(f"UPDATE #{update_count} - {latest_timestamp}")
+                        print(f"{'='*80}")
+
+                        # Display count of granular rows (price levels) processed in this update
+                        # VBP data has multiple rows per timestamp - one for each price level
+                        # This shows how many price levels were in the VBP distribution
+                        print(f"Processed {len(processed_rows_list)} granular rows (price levels)")
+
+                        # Display bar-level OHLCV data from the first processed row
+                        # Bar data (Open, High, Low, Close, Volume) is identical across all price levels
+                        # RVOL is a derived indicator showing relative volume compared to average
+                        # Access nested dict: first_row['current'] contains current bar's data
+                        print("\nBar Data (OHLCV):")
+                        print(f"  Open:   {first_row['current']['Open']:.2f}")
+                        print(f"  High:   {first_row['current']['High']:.2f}")
+                        print(f"  Low:    {first_row['current']['Low']:.2f}")
+                        print(f"  Close:  {first_row['current']['Close']:.2f}")
+                        print(f"  Volume: {first_row['current']['Volume']:.0f}")
+                        print(f"  RVOL:   {first_row['current']['RVOL']:.2f}")
+
+                        # Display Volume by Price distribution table header
+                        # Each row in processed_rows_list represents a different price level
+                        # This shows where volume was concentrated within the bar's price range
+                        print(f"\nVolume by Price Distribution ({len(processed_rows_list)} price levels):")
+
+                        # Print formatted table header with right-aligned column names
+                        # :>10 means right-align in 10 character width
+                        # Provides consistent spacing for numeric data alignment
+                        print(f"{'Price':>10} {'BidVol':>12} {'AskVol':>12} {'TotalVol':>12} {'Trades':>10}")
+                        print("-" * 60)
+
+                        # Iterate through each processed price level to display VBP distribution
+                        # Each processed_row contains enriched data for one price level
+                        # Shows granular volume distribution across different prices in the bar
+                        for processed_row in processed_rows_list:
+                            # Extract current data from the processed row dictionary
+                            # 'current' key contains this bar's data (vs 't-1' for previous bar)
+                            current_data = processed_row['current']
+
+                            # Extract VBP-specific fields for this price level
+                            # .get() with default values handles missing keys gracefully
+                            # Price: The specific price level for this VBP row
+                            price = current_data.get('Price', 0.0)
+                            # BidVol: Volume traded at bid (sellers) at this price
+                            bid_vol = current_data.get('BidVol', 0)
+                            # AskVol: Volume traded at ask (buyers) at this price
+                            ask_vol = current_data.get('AskVol', 0)
+                            # TotalVolume: Combined bid + ask volume at this price
+                            total_vol = current_data.get('TotalVolume', 0)
+                            # NumOfTrades: Number of individual trades at this price
+                            trades = current_data.get('NumOfTrades', 0)
+
+                            # Print formatted row with right-aligned numeric values
+                            # .2f formats price with 2 decimals, .0f formats volumes as integers
+                            # Maintains consistent column alignment for easy visual analysis
+                            print(f"{price:>10.2f} {bid_vol:>12.0f} {ask_vol:>12.0f} "
+                                  f"{total_vol:>12.0f} {trades:>10.0f}")
+
+                        # Trading logic placeholder showing how to access historical context
+                        # Each processed_row contains not just 'current' but also 't-1', 't-2', etc.
+                        # This enables trading decisions based on current data + historical patterns
+                        # Example use cases:
+                        #   - Compare current RVOL to previous bar's RVOL for momentum
+                        #   - Analyze price change from t-1 Close to current Close
+                        #   - Detect volume spikes by comparing current vs t-1 volume
+                        # Example: Access historical data for analysis
+                        # Each processed_row contains 'current', 't-1', 't-2', etc.
+                        # You can use this for your trading logic:
+                        # if first_row['current']['RVOL'] > 2.0:
+                        #     prev_close = first_row.get('t-1', {}).get('Close', 0)
+                        #     current_close = first_row['current']['Close']
+                        #     # Make trading decision based on current + historical context
+
+                        # Optionally save processed data to CSV file for persistence or analysis
+                        # Check if user provided --output path via CLI argument
+                        if output_path:
+                            # Convert processed rows list to pandas DataFrame for CSV export
+                            # Extract only 'current' data from each processed row (ignore t-1, t-2, etc.)
+                            # List comprehension iterates through all processed rows and extracts 'current' dict
+                            # Result: list of dicts, each containing current bar data for one price level
+                            current_data_list = [row['current'] for row in processed_rows_list]
+
+                            # Create DataFrame from list of current data dictionaries
+                            # Each dict becomes a row, dict keys become DataFrame columns
+                            # Columns: Open, High, Low, Close, Volume, Price, BidVol, AskVol, etc.
+                            processed_df = pd.DataFrame(current_data_list)
+
+                            # Set the timestamp as the DataFrame index for time-series structure
+                            # Check if 'timestamp' column exists before attempting to set as index
+                            # This maintains temporal ordering and enables time-based operations
+                            if 'timestamp' in processed_df.columns:
+                                # Convert timestamp column to index (removes from columns)
+                                # inplace=True modifies the DataFrame directly without creating a copy
+                                processed_df.set_index('timestamp', inplace=True)
+
+                            # Append this update's data to the output CSV file
+                            # mode='a' opens file in append mode (adds to end without overwriting)
+                            # header=not Path(output_path).exists() writes column headers only if file is new
+                            # This creates a growing CSV file with all updates across the live session
+                            # Each update adds multiple rows (one per price level) to the file
+                            processed_df.to_csv(
+                                output_path,
+                                mode='a',
+                                header=not Path(output_path).exists()
+                            )
+                            # Log file save operation at debug level (minimal console noise)
+                            # Confirms data is being persisted for later analysis
+                            logger.debug("Update saved to: %s", output_path)
+                    else:
+                        # Handle case where sequential processor returned no data
+                        # This shouldn't normally happen but indicates a processing issue
+                        # Could occur if all rows were duplicates or processing failed
+                        # Log warning with update number to help identify problematic updates
+                        logger.warning("No processed rows from sequential processor for update #%d",
+                                     update_count)
+
+                    # Your trading logic or model predictions would go here
+                    # Example: if latest_row.get('RVOL', 0) > 2.0:
+                    #     logger.info("High volume alert!")
+                    #     # Make prediction with model
+                    #     # Execute trade if conditions met
+
+            except KeyboardInterrupt:
+                # User pressed Ctrl+C to stop
+                logger.info("\nStopping real-time data processing...")
+                print("\nStopping live data stream...")
+
+            finally:
+                # Always clean up the subscriptions
+                logger.info("Cleaning up Sierra Chart subscriptions...")
+                sc_manager.stop_all_subscriptions()
+                logger.info("Sierra Chart subscriptions terminated")
+                print("Live mode terminated successfully")
+
+            # Exit after live mode completes
+            return
 
         # Handle training mode or auto-detect mode (both use file-based processing)
         elif pipeline_mode in [PipelineMode.TRAINING, PipelineMode.AUTO]:
@@ -359,20 +676,41 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
 
     # Catch specific exceptions that might occur during pipeline processing
     # ValueError: Invalid data values, configuration errors
+    except ValueError as value_error:
+        # Log value/configuration errors
+        logger.error("Value error in pipeline processing: %s", value_error)
+        # Exit with error code 1 to indicate failure
+        sys.exit(1)
     # KeyError: Missing expected keys in config or data structures
-    # IOError: File system errors during reading or writing
-    # FileNotFoundError: Input file doesn't exist (additional catch)
-    except (ValueError, KeyError, IOError, FileNotFoundError) as e:
-        # Log the specific error message to help users troubleshoot
-        # Use lazy % formatting (not f-strings) for Pylint compliance
-        logger.error("Error processing data through pipeline: %s", e)
+    except KeyError as key_error:
+        # Log missing key errors
+        logger.error("Key error in pipeline processing: %s", key_error)
+        # Exit with error code 1 to indicate failure
+        sys.exit(1)
+    # FileNotFoundError: Input file doesn't exist (must come before IOError)
+    except FileNotFoundError as file_error:
+        # Log file not found errors
+        logger.error("File not found error: %s", file_error)
+        # Exit with error code 1 to indicate failure
+        sys.exit(1)
+    # IOError/OSError: File system errors during reading or writing
+    except (IOError, OSError) as io_error:
+        # Log file system errors
+        logger.error("File system error in pipeline processing: %s", io_error)
+        # Exit with error code 1 to indicate failure
+        sys.exit(1)
+    except Exception as unexpected_error:  # pylint: disable=broad-except
+        # Catch-all for unexpected pipeline errors
+        # Broad exception is necessary here for user-friendly error handling in CLI
+        logger.error("Unexpected error processing data through pipeline: %s", unexpected_error)
+        logger.exception("Full traceback:")
         # Exit with error code 1 to indicate failure
         sys.exit(1)
 
 
 def show_project_status() -> None:
     """
-    Display comprehensive project status including data files and documentation.
+    Display project status including data files and documentation.
 
     This function provides a dashboard view of the current project state:
     - Available data files and their sizes
@@ -503,13 +841,13 @@ def main():
         # These examples help users understand common command patterns
         epilog="""
 Examples:
-  uv run main.py download-vbp                              # Download VBP data to default location
-  uv run main.py download-vbp --output data.csv            # Download to custom file
-  uv run main.py process-data                               # Process VBP data (auto-detect mode)
-  uv run main.py process-data --mode training               # Process for ML training/backtesting
-  uv run main.py process-data --mode live                   # Process real-time data (Sierra Chart)
-  uv run main.py process-data --input data.csv --mode auto # Process custom file with auto-detect
-  uv run main.py status                                     # Show project status
+  uv run main.py download-vbp                                   # Download VBP data to default location
+  uv run main.py download-vbp --output data.csv                 # Download to custom file
+  uv run main.py process-data                                   # Process VBP data (auto-detect mode)
+  uv run main.py process-data --mode training                   # Process for ML training/backtesting
+  uv run main.py process-data --mode live                       # Process real-time data (Sierra Chart)
+  uv run main.py process-data --input data.csv --mode auto      # Process custom file with auto-detect
+  uv run main.py status                                         # Show project status
         """
     )
 
