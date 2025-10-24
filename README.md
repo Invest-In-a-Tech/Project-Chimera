@@ -5,6 +5,11 @@
 
 ---
 
+![Sierra Chart Volume by Price Analysis](docs/assets/sierra-chart-vbp.png)
+*Real-time Volume by Price (VBP) analysis of ES Futures using Sierra Chart — the foundation of our market microstructure research*
+
+---
+
 ## Why This Exists
 I now realize that finding a statistical edge in trading is a data science problem. If I'm wrong, please correct me—I'm a student first, expert second.
 

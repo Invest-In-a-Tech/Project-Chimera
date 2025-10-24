@@ -1,7 +1,7 @@
 [project]
 name = "project-chimera"
 version = "0.1.0"
-description = "Add your description here"
+description = "ES Futures microstructure pattern discovery using ML/AI — a research pipeline for finding statistical trading edges through Volume by Price analysis"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
