@@ -346,7 +346,15 @@ class SubscribeToVbpChartData:
             # Subgraph 2: Today's highest price (intraday high)
             # Subgraph 3: Today's lowest price (intraday low)
             # Used for intraday support/resistance and range analysis
-            SubgraphQuery(study_id=4, subgraphs=[1, 2, 3])
+            SubgraphQuery(study_id=4, subgraphs=[1, 2, 3]),
+
+            # Study ID 9: Large Trades analysis - tracks unusually large orders
+            # Subgraph 1: Maximum volume in a single large trade
+            # Subgraph 2: Total volume from all large trades
+            # Subgraph 3: Bid volume from large trades
+            # Subgraph 4: Ask volume from large trades
+            # Used to identify institutional activity and significant market moves
+            SubgraphQuery(study_id=9, subgraphs=[1, 2, 3, 4]),
         ]
 
         # Send the subscription request to Sierra Chart via the bridge
@@ -440,9 +448,9 @@ class SubscribeToVbpChartData:
             - This method is called internally by get_subscribed_vbp_chart_data()
         """
 
-    # Define nested helper to convert a single bar's VBP data into a DataFrame
-    # Called for each bar's VolumeByPrice list to create per-bar DataFrames
-    # Input format: [Price, BidVol, AskVol, TotalVolume, NumOfTrades] for each price level
+        # Define nested helper to convert a single bar's VBP data into a DataFrame
+        # Called for each bar's VolumeByPrice list to create per-bar DataFrames
+        # Input format: [Price, BidVol, AskVol, TotalVolume, NumOfTrades] for each price level
         def vbp_to_df(vbp_data: list[list[Any]]) -> pd.DataFrame:
             """
             Convert a single bar's VolumeByPrice nested list into a tabular DataFrame.
@@ -541,16 +549,39 @@ class SubscribeToVbpChartData:
         # inplace=True modifies the DataFrame directly without creating a copy
         combined_df.rename(
             columns={
-                # Rename 'Last' to 'Close' to use the more common terminology
-                'Last': 'Close',
-                # Study 6 / Subgraph 1: Relative volume ratio ( >1 means above average)
-                'ID6.SG1': 'RVOL',
-                # Study 4 / Subgraph 1: Opening price for the current trading session
-                'ID4.SG1': 'TodayOpen',
-                # Study 4 / Subgraph 2: Intraday high for the current session
-                'ID4.SG2': 'TodayHigh',
-                # Study 4 / Subgraph 3: Intraday low for the current session
-                'ID4.SG3': 'TodayLow',
+            # Rename 'Last' to 'Close' - more commonly used term for closing/last price
+            'Last': 'Close',
+            # Study ID 6, Subgraph 1: Relative Volume indicator
+            # RVOL shows current volume relative to average (e.g., 1.5 = 50% above average)
+            'ID6.SG1': 'RVOL',
+
+            # Study ID 4, Subgraph 1: Today's session opening price
+            # First trade price of the current trading day
+            'ID4.SG1': 'TodayOpen',
+
+            # Study ID 4, Subgraph 2: Today's session high price
+            # Highest price reached during current trading day
+            'ID4.SG2': 'TodayHigh',
+
+            # Study ID 4, Subgraph 3: Today's session low price
+            # Lowest price reached during current trading day
+            'ID4.SG3': 'TodayLow',
+
+            # Study ID 9, Subgraph 1: Large Trades - Maximum volume in single trade
+            # Largest individual trade volume detected in the bar
+            'ID9.SG1': 'LTMaxVol',
+
+            # Study ID 9, Subgraph 2: Large Trades - Total volume from all large trades
+            # Sum of volume from all trades classified as "large"
+            'ID9.SG2': 'LTTotalVol',
+
+            # Study ID 9, Subgraph 3: Large Trades - Bid side volume
+            # Volume from large trades executed at bid (selling pressure)
+            'ID9.SG3': 'LTBidVol',
+
+            # Study ID 9, Subgraph 4: Large Trades - Ask side volume
+            # Volume from large trades executed at ask (buying pressure)
+            'ID9.SG4': 'LTAskVol'
             },
             inplace=True,
         )

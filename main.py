@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# pylint: disable=too-many-lines
+# Justification: Extensive inline documentation explaining "why" for each operation
+# makes this CLI module longer than 1000 lines, but the comments provide essential
+# context for understanding the research pipeline. The alternative (splitting into
+# multiple modules) would reduce code cohesion for a CLI entry point.
 """
 Project Chimera CLI - Command Line Interface for VBP Data Operations
 
@@ -330,28 +335,116 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
                     'on_bar_close': True            # Update only on bar close (stable)
                 }
 
+                # Subscribe to VBP chart data stream from Sierra Chart
+                # Why: Establishes persistent connection for real-time updates
+                # The subscription tells Sierra Chart to send us updates whenever new bars close
+                # This is more efficient than polling - Sierra Chart pushes data to us automatically
+                # The vbp_config specifies: initial history bars, update frequency, and timing
                 logger.info("Subscribing to VBP chart data...")
                 vbp_subscription_id = sc_manager.subscribe_vbp_chart_data(vbp_config)
                 logger.info("VBP subscription created (ID: %s)", vbp_subscription_id)
 
-                # Get initial historical data
+                # Get initial historical data to establish context and baseline
+                # Why: We need historical bars BEFORE we can process live updates meaningfully
+                # Without history, we can't calculate indicators that need lookback (RVOL, moving averages, etc.)
+                # The initial_response contains the requested historical_init_bars (e.g., 50 bars)
+                # This provides the necessary context for our sequential processor and feature engineering
                 logger.info("Fetching initial historical data from Sierra Chart...")
                 initial_response = sc_manager.get_next_response(SubscriptionType.VBP_CHART_DATA)
+
+                # Process the raw DTC protocol response into a structured pandas DataFrame
+                # Why: Raw Sierra Chart responses are in binary DTC format, unusable for analysis
+                # The response_processor converts this to a clean DataFrame with proper columns and index
+                # Result: DataFrame with DatetimeIndex and VBP structure (multiple rows per timestamp)
                 initial_data = response_processor.process_vbp_response(initial_response)
 
-                # Display initial data summary
+                # Display initial data summary for immediate user feedback and verification
+                # Why: Users need to verify the subscription worked and data looks correct
+                # Shows data shape (rows, columns) and date range to confirm historical depth
+                # This catches configuration issues early (wrong symbol, missing data, etc.)
+                # First 10 rows reveal VBP structure: OHLCV bar data + multiple price level rows
                 logger.info("Initial data received - Shape: %s", initial_data.shape)
                 print("\nInitial Sierra Chart Data (Live Mode):")
                 print(f"Shape: {initial_data.shape}")
                 print(f"Date range: {initial_data.index.min()} to {initial_data.index.max()}")
-                print("\nFirst 5 rows:")
-                print(initial_data.head())
+                print("\nFirst 10 rows:")
+                print(initial_data.head(10))
 
-                # Run through pipeline for feature engineering
+                # Run entire history through pipeline for feature engineering
+                # Why: Live mode needs the SAME features as training mode for model consistency
+                # The pipeline adds derived features: RVOL, technical indicators, time-based features
+                # We process ALL historical bars (not just the latest) to build proper indicator state
+                # Example: A 20-period moving average needs 20 bars of history to be accurate
+                # Result: features DataFrame with same columns as training data, ready for model input
                 pipeline_config = {'df': initial_data}
                 pipeline = DataPipelineRunner(pipeline_config, pipeline_mode)
                 features = pipeline.run_pipeline()
                 logger.info("Initial features engineered: %s", features.shape)
+
+                # Process entire history through sequential processor to build lookback context
+                # CRITICAL: Must process ALL historical bars, not just the latest one
+                # The sequential processor needs the complete history to build accurate t-1, t-2, etc.
+                # Without processing all bars, the latest bar wouldn't have proper historical context
+                # Example: If we only processed the 14:00 bar, it wouldn't know what t-1 (13:45) was
+                processed_rows_list.clear()
+                sequential_processor.process_multiple_rows(features)
+
+                # Filter to display only the most recent bar to the user
+                # We processed all history above (for context), but only show the latest completed bar
+                # This gives immediate visibility: at 14:15, user sees the completed 14:00 bar
+                # Then at 14:30, they'll get the update showing the 14:15 bar
+                # Check if we have any processed data before filtering
+                if processed_rows_list:
+                    # Extract timestamp from the last processed row (most recent bar)
+                    # processed_rows_list is ordered chronologically, so [-1] is the latest
+                    latest_timestamp = processed_rows_list[-1]['current']['timestamp']
+
+                    # Filter to keep only rows matching the latest timestamp
+                    # Remember: VBP has multiple rows per timestamp (one per price level)
+                    # So we keep all price levels for the latest bar, discard older bars
+                    # List comprehension iterates through all processed rows and keeps matches
+                    latest_bar_rows = [row for row in processed_rows_list
+                                      if row['current']['timestamp'] == latest_timestamp]
+
+                    # Replace the full historical list with just the latest bar's rows
+                    # This is what we'll display to the user - only the most recent completed bar
+                    # The historical context is already embedded in each row's 't-1', 't-2' keys
+                    processed_rows_list = latest_bar_rows
+
+                if processed_rows_list:
+                    # Extract timestamp from the first processed row
+                    first_row = processed_rows_list[0]
+                    latest_timestamp = first_row['current']['timestamp']
+
+                    # Display formatted header for initial data
+                    print(f"\n{'='*80}")
+                    print(f"LATEST BAR (Initial) - {latest_timestamp}")
+                    print(f"{'='*80}")
+                    print(f"Processed {len(processed_rows_list)} granular rows (price levels)")
+
+                    # Display bar-level OHLCV data
+                    print("\nBar Data (OHLCV):")
+                    print(f"  Open:   {first_row['current']['Open']:.2f}")
+                    print(f"  High:   {first_row['current']['High']:.2f}")
+                    print(f"  Low:    {first_row['current']['Low']:.2f}")
+                    print(f"  Close:  {first_row['current']['Close']:.2f}")
+                    print(f"  Volume: {first_row['current']['Volume']:.0f}")
+                    print(f"  RVOL:   {first_row['current']['RVOL']:.2f}")
+
+                    # Display Volume by Price distribution
+                    print(f"\nVolume by Price Distribution ({len(processed_rows_list)} price levels):")
+                    print(f"{'Price':>10} {'BidVol':>12} {'AskVol':>12} {'TotalVol':>12} {'Trades':>10}")
+                    print("-" * 60)
+
+                    for processed_row in processed_rows_list:
+                        current_data = processed_row['current']
+                        price = current_data.get('Price', 0.0)
+                        bid_vol = current_data.get('BidVol', 0)
+                        ask_vol = current_data.get('AskVol', 0)
+                        total_vol = current_data.get('TotalVolume', 0)
+                        trades = current_data.get('NumOfTrades', 0)
+                        print(f"{price:>10.2f} {bid_vol:>12.0f} {ask_vol:>12.0f} "
+                              f"{total_vol:>12.0f} {trades:>10.0f}")
 
                 # Enter real-time processing loop
                 logger.info("\nStarting real-time data processing loop...")

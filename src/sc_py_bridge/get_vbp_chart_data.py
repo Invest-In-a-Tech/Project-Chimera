@@ -195,9 +195,9 @@ class GetVbpData:
         logger.debug("Initializing GetVbpData class")
 
         # Assign the bridge parameter or create a new SCBridge if none was provided
-    # The ternary expression checks if bridge is not None and reuses it
-    # Falls back to creating a fresh SCBridge when no shared instance is provided
-    # This pattern enables both standalone usage and connection sharing scenarios
+        # The ternary expression checks if bridge is not None and reuses it
+        # Falls back to creating a fresh SCBridge when no shared instance is provided
+        # This pattern enables both standalone usage and connection sharing scenarios
         self.bridge = bridge if bridge is not None else SCBridge()
 
         # Assign the columns_to_drop parameter or use default list with 'IsBarClosed'
@@ -297,7 +297,7 @@ class GetVbpData:
         vbp_chart_data_response = self.bridge.get_chart_data(
             # Unique identifier for this data stream/subscription
             # Used by the bridge to track and manage multiple concurrent data requests
-            key='vbpKey',
+            key='15minkey',
 
             # Enable Volume by Price data in the response
             # This adds the VolumeByPrice column with nested price distribution data
@@ -386,8 +386,8 @@ class GetVbpData:
 
         # Define nested helper function to convert a single bar's VBP data into a DataFrame
         # This function is called for each bar's VolumeByPrice list to create individual DataFrames
-    # Takes a list of lists where each inner list captures price and volume details
-    # Format: [Price, BidVol, AskVol, TotalVolume, NumOfTrades]
+        # Takes a list of lists where each inner list captures price and volume details
+        # Format: [Price, BidVol, AskVol, TotalVolume, NumOfTrades]
         def vbp_to_df(vbp_rows: list[list[Any]]) -> pd.DataFrame:
             """
             Convert a single bar's VolumeByPrice nested list into a tabular DataFrame.
