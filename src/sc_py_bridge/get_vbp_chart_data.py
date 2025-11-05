@@ -289,6 +289,11 @@ class GetVbpData:
             # Subgraph 4: Ask volume from large trades
             # Used to identify institutional activity and significant market moves
             SubgraphQuery(study_id=9, subgraphs=[1, 2, 3, 4]),
+
+            # Study ID 2: Volume Delta - tracks net buying/selling pressure
+            # Subgraph 1: Delta - Ask volume minus Bid volume difference
+            # Subgraph 10: Cumulative Delta - running total of net volume delta
+            SubgraphQuery(study_id=2, subgraphs=[1, 10])
         ]
 
         # Execute the chart data request through the Sierra Chart bridge
@@ -513,11 +518,17 @@ class GetVbpData:
 
             # Study ID 9, Subgraph 3: Large Trades - Bid side volume
             # Volume from large trades executed at bid (selling pressure)
-            'ID9.SG3': 'LTBidVol',
+            'ID9.SG3': 'LargeBidTrade',
 
             # Study ID 9, Subgraph 4: Large Trades - Ask side volume
             # Volume from large trades executed at ask (buying pressure)
-            'ID9.SG4': 'LTAskVol'
+            'ID9.SG4': 'LargeAskTrade',
+
+            # Study ID 2, Subgraph 1: Volume Delta - Net volume delta
+            'ID2.SG1': 'Delta',
+
+            # Study ID 2, Subgraph 10: Volume Delta - Cumulative delta
+            'ID2.SG10': 'CumulativeDelta'
         }, inplace=True)
 
         # Return the fully processed, flattened, and normalized DataFrame

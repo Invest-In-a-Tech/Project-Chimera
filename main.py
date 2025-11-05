@@ -430,6 +430,10 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
                     print(f"  Close:  {first_row['current']['Close']:.2f}")
                     print(f"  Volume: {first_row['current']['Volume']:.0f}")
                     print(f"  RVOL:   {first_row['current']['RVOL']:.2f}")
+                    print(f"  Delta:  {first_row['current']['Delta']:.0f}")
+                    print(f"  CumDelta: {first_row['current']['CumulativeDelta']:.0f}")
+                    print(f"  LargeBidTrade: {first_row['current']['LargeBidTrade']:.0f}")
+                    print(f"  LargeAskTrade: {first_row['current']['LargeAskTrade']:.0f}")
 
                     # Display Volume by Price distribution
                     print(f"\nVolume by Price Distribution ({len(processed_rows_list)} price levels):")
@@ -504,6 +508,9 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
                         # Display bar-level OHLCV data from the first processed row
                         # Bar data (Open, High, Low, Close, Volume) is identical across all price levels
                         # RVOL is a derived indicator showing relative volume compared to average
+                        # Delta is volume delta showing net buying/selling pressure
+                        # CumulativeDelta is the running total of net volume delta
+                        # LargeBidTrade and LargeAskTrade show institutional order flow
                         # Access nested dict: first_row['current'] contains current bar's data
                         print("\nBar Data (OHLCV):")
                         print(f"  Open:   {first_row['current']['Open']:.2f}")
@@ -512,6 +519,10 @@ def process_data_pipeline(input_path: Optional[str] = None, output_path: Optiona
                         print(f"  Close:  {first_row['current']['Close']:.2f}")
                         print(f"  Volume: {first_row['current']['Volume']:.0f}")
                         print(f"  RVOL:   {first_row['current']['RVOL']:.2f}")
+                        print(f"  Delta:  {first_row['current']['Delta']:.0f}")
+                        print(f"  CumDelta: {first_row['current']['CumulativeDelta']:.0f}")
+                        print(f"  LargeBidTrade: {first_row['current']['LargeBidTrade']:.0f}")
+                        print(f"  LargeAskTrade: {first_row['current']['LargeAskTrade']:.0f}")
 
                         # Display Volume by Price distribution table header
                         # Each row in processed_rows_list represents a different price level
