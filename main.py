@@ -978,7 +978,7 @@ def validate_data(input_path: Optional[str] = None) -> None:
         # Check 1: Required columns for VBP data
         required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
         optional_columns = ['RVOL', 'Price', 'Delta', 'CumulativeDelta']
-        
+
         missing_required = [col for col in required_columns if col not in df.columns]
         if missing_required:
             issues.append(f"Missing required columns: {missing_required}")
@@ -1040,7 +1040,7 @@ def validate_data(input_path: Optional[str] = None) -> None:
         if 'Close' in df.columns:
             close_mean = df['Close'].mean()
             close_std = df['Close'].std()
-            outliers = df[(df['Close'] > close_mean + 5 * close_std) | 
+            outliers = df[(df['Close'] > close_mean + 5 * close_std) |
                          (df['Close'] < close_mean - 5 * close_std)]
             if not outliers.empty:
                 warnings_list.append(f"Found {len(outliers)} extreme price outliers (>5 std dev)")
@@ -1132,62 +1132,62 @@ def subscribe_raw(
         sys.exit(1)
 
     subscriber = None  # Initialize to None for proper cleanup in exception handlers
-    
+
     try:
         # Initialize subscriber
-        on_bar_close = (update_interval == 'close')
+        on_bar_close = update_interval == 'close'
         logger.info("Connecting to Sierra Chart...")
-        
+
         subscriber = SubscribeToVbpChartData(
             historical_init_bars=bars,
             realtime_update_bars=1,
             on_bar_close=on_bar_close
         )
-        
+
         logger.info("✓ Connected successfully!")
         logger.info("Streaming live data... (Press Ctrl+C to stop)")
         print("\n" + "=" * 70)
 
         update_count = 0
-        
+
         # Continuous update loop
         while True:
             # Get next update (blocking call)
             df = subscriber.get_subscribed_vbp_chart_data()
-            
+
             update_count += 1
-            
+
             # Get the latest bar data
             if not df.empty:
                 latest = df.iloc[-1]
                 timestamp = df.index[-1]
-                
+
                 print(f"\n[Update #{update_count}] {timestamp}")
                 print("-" * 70)
-                
+
                 # Display OHLCV data
                 if all(col in df.columns for col in ['Open', 'High', 'Low', 'Close', 'Volume']):
                     print(f"  O: {latest['Open']:.2f}  H: {latest['High']:.2f}  "
                           f"L: {latest['Low']:.2f}  C: {latest['Close']:.2f}")
                     print(f"  Volume: {latest['Volume']:.0f}", end="")
-                    
+
                     # Show RVOL if available
                     if 'RVOL' in df.columns:
                         print(f"  RVOL: {latest['RVOL']:.2f}", end="")
-                    
+
                     # Show Delta indicators if available
                     if 'Delta' in df.columns:
                         print(f"  Delta: {latest['Delta']:.0f}", end="")
                     if 'CumulativeDelta' in df.columns:
                         print(f"  CumDelta: {latest['CumulativeDelta']:.0f}", end="")
-                    
+
                     print()  # New line
-                
+
                 # Show VBP data summary if available
                 if 'Price' in df.columns:
                     vbp_count = df[df.index == timestamp].shape[0]
                     print(f"  VBP Levels: {vbp_count}")
-                
+
                 print("-" * 70)
 
     except KeyboardInterrupt:
@@ -1280,7 +1280,7 @@ def export_features(
     if output_path is None:
         output_dir = Path("data/processed")
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
         filename = f"features_{timestamp}.{format_type}"
         output_path = str(output_dir / filename)
@@ -1296,7 +1296,7 @@ def export_features(
 
         # Process through pipeline (training mode for feature engineering)
         logger.info("Processing features through data pipeline...")
-        
+
         if DataPipelineRunner is None or PipelineMode is None:
             logger.error("Cannot import DataPipelineRunner")
             if _IMPORT_ERROR:
@@ -1306,16 +1306,16 @@ def export_features(
         # Initialize pipeline in training mode with config
         config = {'file_path': input_path}
         pipeline = DataPipelineRunner(config, PipelineMode.TRAINING)
-        
+
         # Process the data through the pipeline
         processed_data = pipeline.run_pipeline()
-        
+
         logger.info("Feature engineering complete")
         logger.info("Processed features shape: %d rows", len(processed_data))
 
         # Export in requested format
         logger.info("Exporting features as %s...", format_type)
-        
+
         if format_type == 'csv':
             processed_data.to_csv(output_path, index=True)
         elif format_type == 'parquet':
@@ -1598,3 +1598,5 @@ if __name__ == "__main__":
     # Call the main CLI function to start the application
     # This initiates argument parsing and command routing
     main()
+
+
