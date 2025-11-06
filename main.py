@@ -913,6 +913,445 @@ def show_project_status() -> None:
     print("   - Start a new experiment using docs/research/experiments/template.md")
 
 
+def validate_data(input_path: Optional[str] = None) -> None:
+    """
+    Validate VBP data quality with comprehensive checks.
+
+    This function performs data quality validation including:
+    - File existence and readability checks
+    - Schema validation (required columns present)
+    - Missing data detection (NaN values, gaps in time series)
+    - Data range validation (reasonable OHLCV values)
+    - Timestamp continuity checks
+    - Statistical anomaly detection
+
+    Args:
+        input_path: Optional path to CSV file. If None, auto-detects VBP data files
+                   in data/raw/dataframes/ directory.
+
+    Returns:
+        None: Outputs validation report to console and exits with code 0 (pass) or 1 (fail)
+
+    Raises:
+        SystemExit: Exits with code 1 if critical validation errors are found
+
+    Example:
+        >>> validate_data()  # Auto-detect and validate
+        >>> validate_data('data/custom.csv')  # Validate specific file
+    """
+    logger.info("Starting data validation...")
+
+    # Determine which file to validate
+    if input_path is None:
+        # Auto-detect VBP data files in standard location
+        data_dir = Path("data/raw/dataframes")
+        if not data_dir.exists():
+            logger.error("Data directory not found: %s", data_dir)
+            logger.error("Run 'download-vbp' command first to extract data")
+            sys.exit(1)
+
+        # Find CSV files in the data directory
+        csv_files = list(data_dir.glob("*.csv"))
+        if not csv_files:
+            logger.error("No CSV files found in %s", data_dir)
+            sys.exit(1)
+
+        # Use the first CSV file found (or most recent)
+        input_path = str(csv_files[0])
+        logger.info("Auto-detected data file: %s", input_path)
+    else:
+        # Use provided path
+        if not Path(input_path).exists():
+            logger.error("File not found: %s", input_path)
+            sys.exit(1)
+
+    try:
+        # Load the data
+        logger.info("Loading data from: %s", input_path)
+        df = pd.read_csv(input_path, index_col=0, parse_dates=True)
+        logger.info("✓ Successfully loaded %d rows", len(df))
+
+        # Track validation issues
+        issues = []
+        warnings_list = []
+
+        # Check 1: Required columns for VBP data
+        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        optional_columns = ['RVOL', 'Price', 'Delta', 'CumulativeDelta']
+        
+        missing_required = [col for col in required_columns if col not in df.columns]
+        if missing_required:
+            issues.append(f"Missing required columns: {missing_required}")
+        else:
+            logger.info("✓ All required columns present")
+
+        missing_optional = [col for col in optional_columns if col not in df.columns]
+        if missing_optional:
+            warnings_list.append(f"Missing optional columns: {missing_optional}")
+
+        # Check 2: Missing data (NaN values)
+        nan_counts = df.isnull().sum()
+        columns_with_nans = nan_counts[nan_counts > 0]
+        if not columns_with_nans.empty:
+            warnings_list.append("Columns with missing values:")
+            for col, count in columns_with_nans.items():
+                pct = (count / len(df)) * 100
+                warnings_list.append(f"  - {col}: {count} ({pct:.2f}%)")
+        else:
+            logger.info("✓ No missing values detected")
+
+        # Check 3: Data ranges (OHLC relationships)
+        if all(col in df.columns for col in ['Open', 'High', 'Low', 'Close']):
+            invalid_ranges = (
+                (df['High'] < df['Low']) |
+                (df['High'] < df['Open']) |
+                (df['High'] < df['Close']) |
+                (df['Low'] > df['Open']) |
+                (df['Low'] > df['Close'])
+            )
+            invalid_count = invalid_ranges.sum()
+            if invalid_count > 0:
+                issues.append(f"Invalid OHLC relationships in {invalid_count} rows")
+            else:
+                logger.info("✓ All OHLC relationships valid")
+
+        # Check 4: Negative values where they shouldn't be
+        if 'Volume' in df.columns:
+            negative_volume = (df['Volume'] < 0).sum()
+            if negative_volume > 0:
+                issues.append(f"Negative volume values in {negative_volume} rows")
+            else:
+                logger.info("✓ No negative volume values")
+
+        # Check 5: Timestamp continuity (check for large gaps)
+        if isinstance(df.index, pd.DatetimeIndex):
+            time_diffs = df.index.to_series().diff()
+            median_diff = time_diffs.median()
+            # Flag gaps larger than 10x the median time difference
+            large_gaps = time_diffs[time_diffs > median_diff * 10]
+            if not large_gaps.empty:
+                warnings_list.append(f"Found {len(large_gaps)} large time gaps")
+                warnings_list.append(f"  Median interval: {median_diff}")
+                warnings_list.append(f"  Largest gap: {large_gaps.max()}")
+            else:
+                logger.info("✓ No large time gaps detected")
+
+        # Check 6: Statistical anomalies (extreme outliers)
+        if 'Close' in df.columns:
+            close_mean = df['Close'].mean()
+            close_std = df['Close'].std()
+            outliers = df[(df['Close'] > close_mean + 5 * close_std) | 
+                         (df['Close'] < close_mean - 5 * close_std)]
+            if not outliers.empty:
+                warnings_list.append(f"Found {len(outliers)} extreme price outliers (>5 std dev)")
+            else:
+                logger.info("✓ No extreme price outliers")
+
+        # Print validation summary
+        print("\n" + "=" * 70)
+        print("DATA VALIDATION REPORT")
+        print("=" * 70)
+        print(f"File: {input_path}")
+        print(f"Rows: {len(df):,}")
+        print(f"Columns: {len(df.columns)}")
+        print(f"Date Range: {df.index.min()} to {df.index.max()}")
+        print()
+
+        if issues:
+            print("❌ CRITICAL ISSUES FOUND:")
+            for issue in issues:
+                print(f"   {issue}")
+            print()
+
+        if warnings_list:
+            print("⚠️  WARNINGS:")
+            for warning in warnings_list:
+                print(f"   {warning}")
+            print()
+
+        if not issues and not warnings_list:
+            print("✅ ALL CHECKS PASSED - Data quality is excellent!")
+        elif not issues:
+            print("✅ VALIDATION PASSED - Minor warnings noted above")
+        else:
+            print("❌ VALIDATION FAILED - Critical issues must be resolved")
+
+        print("=" * 70)
+
+        # Exit with appropriate code
+        if issues:
+            sys.exit(1)
+        else:
+            sys.exit(0)
+
+    except Exception as error:  # pylint: disable=broad-except
+        logger.error("Validation failed with error: %s", error)
+        logger.exception("Full traceback:")
+        sys.exit(1)
+
+
+def subscribe_raw(
+    bars: int = 50,
+    update_interval: str = 'close'
+) -> None:
+    """
+    Subscribe to raw VBP data from Sierra Chart for debugging and monitoring.
+
+    This command establishes a real-time subscription to Sierra Chart and displays
+    raw market data updates without processing. Useful for:
+    - Debugging Sierra Chart connection issues
+    - Monitoring live data feed quality
+    - Verifying subscription configuration
+    - Testing before running full pipeline
+
+    Args:
+        bars: Number of historical bars to fetch initially (default: 50)
+        update_interval: When to receive updates - 'close' (bar close only) or
+                        'tick' (every price change) (default: 'close')
+
+    Returns:
+        None: Runs continuously until Ctrl+C, displaying updates to console
+
+    Raises:
+        SystemExit: Exits with code 1 if connection fails or errors occur
+
+    Example:
+        >>> subscribe_raw()  # Default: 50 bars, update on close
+        >>> subscribe_raw(bars=100, update_interval='tick')  # 100 bars, tick updates
+    """
+    logger.info("Starting raw VBP subscription...")
+    logger.info("Configuration: %d bars, update on %s", bars, update_interval)
+
+    try:
+        # Import Sierra Chart subscription module
+        # pylint: disable=import-outside-toplevel
+        from src.sc_py_bridge.subscribe_to_vbp_chart_data import SubscribeToVbpChartData
+    except ImportError as e:
+        logger.error("Cannot import Sierra Chart subscription module: %s", e)
+        logger.error("Make sure all dependencies are installed")
+        sys.exit(1)
+
+    subscriber = None  # Initialize to None for proper cleanup in exception handlers
+    
+    try:
+        # Initialize subscriber
+        on_bar_close = (update_interval == 'close')
+        logger.info("Connecting to Sierra Chart...")
+        
+        subscriber = SubscribeToVbpChartData(
+            historical_init_bars=bars,
+            realtime_update_bars=1,
+            on_bar_close=on_bar_close
+        )
+        
+        logger.info("✓ Connected successfully!")
+        logger.info("Streaming live data... (Press Ctrl+C to stop)")
+        print("\n" + "=" * 70)
+
+        update_count = 0
+        
+        # Continuous update loop
+        while True:
+            # Get next update (blocking call)
+            df = subscriber.get_subscribed_vbp_chart_data()
+            
+            update_count += 1
+            
+            # Get the latest bar data
+            if not df.empty:
+                latest = df.iloc[-1]
+                timestamp = df.index[-1]
+                
+                print(f"\n[Update #{update_count}] {timestamp}")
+                print("-" * 70)
+                
+                # Display OHLCV data
+                if all(col in df.columns for col in ['Open', 'High', 'Low', 'Close', 'Volume']):
+                    print(f"  O: {latest['Open']:.2f}  H: {latest['High']:.2f}  "
+                          f"L: {latest['Low']:.2f}  C: {latest['Close']:.2f}")
+                    print(f"  Volume: {latest['Volume']:.0f}", end="")
+                    
+                    # Show RVOL if available
+                    if 'RVOL' in df.columns:
+                        print(f"  RVOL: {latest['RVOL']:.2f}", end="")
+                    
+                    # Show Delta indicators if available
+                    if 'Delta' in df.columns:
+                        print(f"  Delta: {latest['Delta']:.0f}", end="")
+                    if 'CumulativeDelta' in df.columns:
+                        print(f"  CumDelta: {latest['CumulativeDelta']:.0f}", end="")
+                    
+                    print()  # New line
+                
+                # Show VBP data summary if available
+                if 'Price' in df.columns:
+                    vbp_count = df[df.index == timestamp].shape[0]
+                    print(f"  VBP Levels: {vbp_count}")
+                
+                print("-" * 70)
+
+    except KeyboardInterrupt:
+        print("\n\nStopping subscription...")
+        logger.info("Subscription stopped by user")
+        # Clean up connection if subscriber was initialized
+        if subscriber is not None:
+            try:
+                subscriber.stop_bridge()
+                logger.info("Connection closed successfully")
+            except:  # pylint: disable=bare-except
+                pass
+    except Exception as error:  # pylint: disable=broad-except
+        logger.error("Subscription error: %s", error)
+        logger.exception("Full traceback:")
+        # Clean up on error if subscriber was initialized
+        if subscriber is not None:
+            try:
+                subscriber.stop_bridge()
+            except:  # pylint: disable=bare-except
+                pass
+        sys.exit(1)
+
+
+def export_features(
+    input_path: Optional[str] = None,
+    output_path: Optional[str] = None,
+    format_type: str = 'csv'
+) -> None:
+    """
+    Export processed features for ML model training.
+
+    This function processes VBP data through the feature engineering pipeline
+    and exports the results in formats suitable for machine learning:
+    - CSV: Standard comma-separated values (compatible with all tools)
+    - Parquet: Columnar format (fast, compressed, preserves types)
+    - HDF5: Hierarchical format (efficient for large datasets)
+
+    The exported features include:
+    - Processed OHLCV data
+    - Volume indicators (RVOL, Delta, Cumulative Delta)
+    - VBP distribution features
+    - Historical lookback periods (t-1, t-2, etc.)
+
+    Args:
+        input_path: Optional path to input CSV. If None, auto-detects VBP data
+        output_path: Optional output path. If None, creates output in data/processed/
+        format_type: Output format - 'csv', 'parquet', or 'hdf5' (default: 'csv')
+
+    Returns:
+        None: Saves features to disk and logs summary
+
+    Raises:
+        SystemExit: Exits with code 1 if processing fails
+
+    Example:
+        >>> export_features()  # Auto-detect input, CSV output
+        >>> export_features('data.csv', 'features.parquet', 'parquet')
+        >>> export_features(format_type='hdf5')
+    """
+    logger.info("Starting feature export...")
+
+    # Validate format type
+    valid_formats = ['csv', 'parquet', 'hdf5']
+    if format_type not in valid_formats:
+        logger.error("Invalid format '%s'. Valid formats: %s", format_type, valid_formats)
+        sys.exit(1)
+
+    # Determine input file
+    if input_path is None:
+        data_dir = Path("data/raw/dataframes")
+        if not data_dir.exists():
+            logger.error("Data directory not found: %s", data_dir)
+            logger.error("Run 'download-vbp' command first")
+            sys.exit(1)
+
+        csv_files = list(data_dir.glob("*.csv"))
+        if not csv_files:
+            logger.error("No CSV files found in %s", data_dir)
+            sys.exit(1)
+
+        input_path = str(csv_files[0])
+        logger.info("Auto-detected input file: %s", input_path)
+    else:
+        if not Path(input_path).exists():
+            logger.error("Input file not found: %s", input_path)
+            sys.exit(1)
+
+    # Determine output path
+    if output_path is None:
+        output_dir = Path("data/processed")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"features_{timestamp}.{format_type}"
+        output_path = str(output_dir / filename)
+        logger.info("Output will be saved to: %s", output_path)
+
+    try:
+        # Validate input file
+        if not Path(input_path).exists():
+            logger.error("Input file not found: %s", input_path)
+            sys.exit(1)
+
+        logger.info("Processing features from: %s", input_path)
+
+        # Process through pipeline (training mode for feature engineering)
+        logger.info("Processing features through data pipeline...")
+        
+        if DataPipelineRunner is None or PipelineMode is None:
+            logger.error("Cannot import DataPipelineRunner")
+            if _IMPORT_ERROR:
+                logger.error("Import error: %s", _IMPORT_ERROR)
+            sys.exit(1)
+
+        # Initialize pipeline in training mode with config
+        config = {'file_path': input_path}
+        pipeline = DataPipelineRunner(config, PipelineMode.TRAINING)
+        
+        # Process the data through the pipeline
+        processed_data = pipeline.run_pipeline()
+        
+        logger.info("Feature engineering complete")
+        logger.info("Processed features shape: %d rows", len(processed_data))
+
+        # Export in requested format
+        logger.info("Exporting features as %s...", format_type)
+        
+        if format_type == 'csv':
+            processed_data.to_csv(output_path, index=True)
+        elif format_type == 'parquet':
+            processed_data.to_parquet(output_path, index=True)
+        elif format_type == 'hdf5':
+            processed_data.to_hdf(output_path, key='features', mode='w')
+
+        # Get file size
+        file_size = Path(output_path).stat().st_size / (1024 * 1024)  # MB
+
+        # Print summary
+        print("\n" + "=" * 70)
+        print("FEATURE EXPORT COMPLETE")
+        print("=" * 70)
+        print(f"Input file: {input_path}")
+        print(f"Output file: {output_path}")
+        print(f"Format: {format_type.upper()}")
+        print(f"Rows: {len(processed_data):,}")
+        print(f"Columns: {len(processed_data.columns)}")
+        print(f"File size: {file_size:.2f} MB")
+        print()
+        print("Features included:")
+        for col in processed_data.columns[:20]:  # Show first 20 columns
+            print(f"  - {col}")
+        if len(processed_data.columns) > 20:
+            print(f"  ... and {len(processed_data.columns) - 20} more")
+        print("=" * 70)
+
+        logger.info("✓ Features exported successfully")
+
+    except Exception as error:  # pylint: disable=broad-except
+        logger.error("Feature export failed: %s", error)
+        logger.exception("Full traceback:")
+        sys.exit(1)
+
+
 def main():
     """
     Main CLI entry point for Project Chimera research pipeline.
@@ -921,6 +1360,9 @@ def main():
     - VBP data extraction from Sierra Chart
     - Data pipeline processing with multiple modes
     - Project status reporting
+    - Data validation and quality checks
+    - Raw subscription monitoring for debugging
+    - Feature export for ML model training
     - Help and usage information
 
     The CLI uses argparse with subcommands to provide a clean, modular interface.
@@ -933,6 +1375,7 @@ def main():
         >>> # Called automatically when script runs:
         >>> # python main.py download-vbp
         >>> # python main.py process-data --mode training
+        >>> # python main.py validate-data
         >>> # python main.py status
     """
     # Create the main argument parser with detailed description and examples
@@ -951,6 +1394,12 @@ Examples:
   uv run main.py process-data --mode training                   # Process for ML training/backtesting
   uv run main.py process-data --mode live                       # Process real-time data (Sierra Chart)
   uv run main.py process-data --input data.csv --mode auto      # Process custom file with auto-detect
+  uv run main.py validate-data                                  # Validate data quality
+  uv run main.py validate-data --input custom.csv               # Validate specific file
+  uv run main.py subscribe-raw                                  # Monitor raw Sierra Chart data
+  uv run main.py subscribe-raw --bars 100 --interval tick       # Subscribe with custom settings
+  uv run main.py export-features                                # Export features as CSV
+  uv run main.py export-features --format parquet               # Export features as Parquet
   uv run main.py status                                         # Show project status
         """
     )
@@ -1016,6 +1465,78 @@ Examples:
     # This command has no arguments - it just displays the current project state
     subparsers.add_parser('status', help='Show project status and available data')
 
+    # Configure the data validation command
+    # add_parser creates a new subcommand parser for 'validate-data'
+    # This subcommand performs comprehensive data quality checks
+    validate_parser = subparsers.add_parser(
+        'validate-data',
+        help='Validate VBP data quality and integrity'
+    )
+
+    # Add optional --input/-i argument to specify file to validate
+    # If not provided, auto-detects VBP data files in standard locations
+    validate_parser.add_argument(
+        '--input', '-i',
+        help='Input CSV file path (default: auto-detect VBP data in data/raw/dataframes/)'
+    )
+
+    # Configure the raw subscription monitoring command
+    # add_parser creates a new subcommand parser for 'subscribe-raw'
+    # This subcommand displays raw Sierra Chart data for debugging
+    subscribe_parser = subparsers.add_parser(
+        'subscribe-raw',
+        help='Subscribe to raw VBP data from Sierra Chart (debugging)'
+    )
+
+    # Add optional --bars argument to specify historical context
+    # Controls how many historical bars to fetch initially
+    subscribe_parser.add_argument(
+        '--bars', '-b',
+        type=int,
+        default=50,
+        help='Number of historical bars to fetch initially (default: 50)'
+    )
+
+    # Add optional --interval argument to control update frequency
+    # 'close' updates only on bar close, 'tick' updates on every price change
+    subscribe_parser.add_argument(
+        '--interval', '-t',
+        choices=['close', 'tick'],
+        default='close',
+        help='Update interval: close (bar close only) or tick (every change) (default: close)'
+    )
+
+    # Configure the feature export command
+    # add_parser creates a new subcommand parser for 'export-features'
+    # This subcommand exports processed features for ML training
+    export_parser = subparsers.add_parser(
+        'export-features',
+        help='Export processed features for ML model training'
+    )
+
+    # Add optional --input/-i argument to specify input CSV file
+    # If not provided, auto-detects VBP data files in standard locations
+    export_parser.add_argument(
+        '--input', '-i',
+        help='Input CSV file path (default: auto-detect VBP data in data/raw/dataframes/)'
+    )
+
+    # Add optional --output/-o argument to specify output file path
+    # If not provided, creates timestamped file in data/processed/
+    export_parser.add_argument(
+        '--output', '-o',
+        help='Output file path (default: data/processed/features_TIMESTAMP.{format})'
+    )
+
+    # Add optional --format/-f argument to select export format
+    # Supports CSV, Parquet, and HDF5 formats
+    export_parser.add_argument(
+        '--format', '-f',
+        choices=['csv', 'parquet', 'hdf5'],
+        default='csv',
+        help='Output format: csv, parquet, or hdf5 (default: csv)'
+    )
+
     # Parse command line arguments
     # parse_args() processes sys.argv and returns a Namespace object
     # The Namespace contains attributes for each argument (command, output, input, mode)
@@ -1043,6 +1564,25 @@ Examples:
         # Display project status dashboard
         # No arguments needed - function displays current project state
         show_project_status()
+
+    # Check if user chose the 'validate-data' subcommand
+    elif args.command == 'validate-data':
+        # Execute data validation with optional input path
+        # args.input will be None if --input wasn't provided (auto-detects file)
+        validate_data(args.input)
+
+    # Check if user chose the 'subscribe-raw' subcommand
+    elif args.command == 'subscribe-raw':
+        # Execute raw subscription monitoring with custom settings
+        # args.bars controls historical context, args.interval controls update frequency
+        subscribe_raw(args.bars, args.interval)
+
+    # Check if user chose the 'export-features' subcommand
+    elif args.command == 'export-features':
+        # Execute feature export with optional paths and format
+        # args.input and args.output can be None (triggers auto-detection)
+        # args.format specifies the output file format (csv, parquet, hdf5)
+        export_features(args.input, args.output, args.format)
 
     else:
         # No command provided - show help information

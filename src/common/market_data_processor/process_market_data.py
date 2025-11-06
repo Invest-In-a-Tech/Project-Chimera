@@ -123,7 +123,8 @@ class ProcessMarketData:
         # get_indexer returns an array with the position; [0] extracts the single integer
         # This index is used to navigate backward in time for historical lookback
         # Returns: int representing the position of current_timestamp in the index
-        current_index = timestamps.get_indexer([current_timestamp])[0]
+        # Convert the timestamp to a pandas Index to satisfy type requirements
+        current_index = timestamps.get_indexer(pd.Index([current_timestamp]))[0]
 
         # Initialize the market_data dictionary with a 'current' key holding an empty dict
         # This resets any previous data and prepares the structure for new data
