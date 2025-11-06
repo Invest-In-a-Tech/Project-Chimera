@@ -1598,5 +1598,3 @@ if __name__ == "__main__":
     # Call the main CLI function to start the application
     # This initiates argument parsing and command routing
     main()
-
-
