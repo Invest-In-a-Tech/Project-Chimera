@@ -131,7 +131,7 @@ class GetVbpData:
 
     # Number of historical bars to retrieve in each chart data request
     # Determines how much historical data is available for analysis
-    # Type: Integer representing bar count (default 1,000,000)
+    # Type: Integer representing bar count (default 1,000)
     historical_bars: int
 
     def __init__(
@@ -145,9 +145,9 @@ class GetVbpData:
         # Allows customization of which columns are excluded from results
         columns_to_drop: Optional[List[str]] = None,
         # Number of historical bars to request from Sierra Chart
-        # Default 1,000,000 provides extensive historical depth
+        # Default 1,000 provides extensive historical depth
         # Can be reduced for faster queries when less history is needed
-        historical_bars: int = 1000000
+        historical_bars: int = 1000
     ) -> None:
         """
         Initialize the GetVbpData instance with configuration parameters.
@@ -648,7 +648,13 @@ class GetVbpData:
         # Invoke the bridge's stop() method to terminate the connection
         # This closes the socket, releases system resources, and performs cleanup
         # Ensures graceful shutdown of communication with Sierra Chart
-        self.bridge.stop()
+        # Check if bridge exists and has stop_event attribute before calling stop
+        if self.bridge is not None and hasattr(self.bridge, 'stop_event'):
+            try:
+                self.bridge.stop()
+            except Exception as e:  # pylint: disable=broad-except
+                # Log error but don't raise - cleanup should be graceful
+                logger.warning("Error stopping bridge: %s", e)
 
 # if __name__ == "__main__":
 #     # Example usage when running this module as a script

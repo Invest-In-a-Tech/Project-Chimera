@@ -55,7 +55,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def download_vbp_data(output_path: Optional[str] = None) -> None:
+def download_vbp_data(output_path: Optional[str] = None, historical_bars: int = 1000000) -> None:
     """
     Download historical Volume by Price (VBP) data using the GetVbpData class.
 
@@ -68,6 +68,7 @@ def download_vbp_data(output_path: Optional[str] = None) -> None:
     Args:
         output_path: Optional custom output path for CSV file. If None, defaults to
                     data/raw/dataframes/volume_by_price_data.csv
+        historical_bars: Number of historical bars to download (default: 1000000)
 
     Returns:
         None: Outputs are saved to disk and logged to console
@@ -76,8 +77,8 @@ def download_vbp_data(output_path: Optional[str] = None) -> None:
         SystemExit: Exits with code 1 if import fails or data processing encounters errors
 
     Example:
-        >>> download_vbp_data()  # Uses default output path
-        >>> download_vbp_data('custom_data.csv')  # Uses custom output path
+        >>> download_vbp_data()  # Uses default output path and 1M bars
+        >>> download_vbp_data('custom_data.csv', 5000)  # Custom path and 5000 bars
     """
     # Check if VBP class was imported successfully at module load time
     # GetVbpData is set to None in the try-except block at module level if import fails
@@ -92,14 +93,17 @@ def download_vbp_data(output_path: Optional[str] = None) -> None:
         # Exit with error code 1 to indicate failure to calling process
         sys.exit(1)
 
-    # Wrap data extraction in try-except to handle any errors gracefully
+    # Wrap data extraction in try-except-finally to handle errors and ensure cleanup
     # This prevents uncaught exceptions from crashing the CLI with ugly stack traces
+    # and ensures the bridge is always properly closed
+    vbp_fetcher = None  # Initialize to None for cleanup in finally block
     try:
-        # Initialize the VBP data fetcher with default Sierra Chart bridge settings
+        # Initialize the VBP data fetcher with Sierra Chart bridge settings
         # This creates a connection to Sierra Chart via the DTC protocol bridge
+        # Pass the historical_bars parameter to control how much data to fetch
         # Log informational message to track progress in the data extraction workflow
-        logger.info("Initializing VBP data downloader...")
-        vbp_fetcher = GetVbpData()
+        logger.info("Initializing VBP data downloader with %d historical bars...", historical_bars)
+        vbp_fetcher = GetVbpData(historical_bars=historical_bars)
 
         # Fetch VBP data from Sierra Chart via the initialized bridge connection
         # This retrieves historical OHLCV data + Volume by Price profiles
@@ -124,6 +128,20 @@ def download_vbp_data(output_path: Optional[str] = None) -> None:
             # The / operator joins path components in a platform-independent way
             # Convert Path object to string for compatibility with df.to_csv()
             output_path = str(output_dir / "volume_by_price_data.csv")
+        else:
+            # Custom output path provided - check if it's just a filename or full path
+            output_path_obj = Path(output_path)
+            
+            # If only a filename was provided (no directory), save to default directory
+            if output_path_obj.parent == Path('.'):
+                # No directory specified - use default data/raw/dataframes directory
+                output_dir = Path("data/raw/dataframes")
+                output_dir.mkdir(parents=True, exist_ok=True)
+                output_path = str(output_dir / output_path)
+            else:
+                # Full path provided - create parent directories if needed
+                output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+                output_path = str(output_path_obj)
 
         # Save the processed DataFrame to CSV with DateTime index preserved
         # index=True ensures the DatetimeIndex is saved as the first column
@@ -139,9 +157,6 @@ def download_vbp_data(output_path: Optional[str] = None) -> None:
         # df.index.min() and max() return the earliest and latest timestamps
         logger.info("Data date range: %s to %s", df.index.min(), df.index.max())
 
-        # Clean up the Sierra Chart bridge connection to free resources
-        # This properly closes the DTC protocol connection and cleans up threads
-        vbp_fetcher.stop_bridge()
         logger.info("VBP data download completed successfully")
 
     # Catch specific exceptions that might occur during data processing
@@ -166,6 +181,12 @@ def download_vbp_data(output_path: Optional[str] = None) -> None:
         logger.exception("Full traceback:")
         # Exit with error code 1 to indicate failure to calling process
         sys.exit(1)
+    finally:
+        # Always clean up the Sierra Chart bridge connection to free resources
+        # This properly closes the DTC protocol connection and cleans up threads
+        # regardless of whether an error occurred or not
+        if vbp_fetcher is not None:
+            vbp_fetcher.stop_bridge()
 
 
 def process_data_pipeline(input_path: Optional[str] = None, output_path: Optional[str] = None,
@@ -1388,8 +1409,10 @@ def main():
         # These examples help users understand common command patterns
         epilog="""
 Examples:
-  uv run main.py download-vbp                                   # Download VBP data to default location
-  uv run main.py download-vbp --output data.csv                 # Download to custom file
+  uv run main.py download-vbp                                   # Download VBP data (default: 1M bars)
+  uv run main.py download-vbp --bars 5000                       # Download 5000 bars
+  uv run main.py download-vbp --output mydata.csv               # Save to data/raw/dataframes/mydata.csv
+  uv run main.py download-vbp --output custom/path/data.csv     # Save to custom directory path
   uv run main.py process-data                                   # Process VBP data (auto-detect mode)
   uv run main.py process-data --mode training                   # Process for ML training/backtesting
   uv run main.py process-data --mode live                       # Process real-time data (Sierra Chart)
@@ -1419,10 +1442,19 @@ Examples:
     )
 
     # Add optional --output/-o argument to specify custom output file path
-    # If not provided, defaults to data/raw/dataframes/1.volume_by_price_15years.csv
+    # If only filename provided, saves to data/raw/dataframes/; if full path, uses that path
     download_parser.add_argument(
         '--output', '-o',
-        help='Output CSV file path (default: data/raw/dataframes/1.volume_by_price_15years.csv)'
+        help='Output CSV file (saves to data/raw/dataframes/ if only filename provided, or custom path if directory included)'
+    )
+
+    # Add optional --bars/-b argument to specify number of historical bars
+    # Controls how much historical data to download from Sierra Chart
+    download_parser.add_argument(
+        '--bars', '-b',
+        type=int,
+        default=1000000,
+        help='Number of historical bars to download (default: 1000000)'
     )
 
     # Configure the data processing pipeline command
@@ -1547,9 +1579,10 @@ Examples:
 
     # Check if user chose the 'download-vbp' subcommand
     if args.command == 'download-vbp':
-        # Execute VBP data download with optional custom output path
+        # Execute VBP data download with optional custom output path and bars count
         # args.output will be None if --output wasn't provided (uses default)
-        download_vbp_data(args.output)
+        # args.bars defaults to 1000000 if not specified
+        download_vbp_data(args.output, args.bars)
 
     # Check if user chose the 'process-data' subcommand
     elif args.command == 'process-data':
