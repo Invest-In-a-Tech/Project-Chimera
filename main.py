@@ -131,7 +131,7 @@ def download_vbp_data(output_path: Optional[str] = None, historical_bars: int = 
         else:
             # Custom output path provided - check if it's just a filename or full path
             output_path_obj = Path(output_path)
-            
+
             # If only a filename was provided (no directory), save to default directory
             if output_path_obj.parent == Path('.'):
                 # No directory specified - use default data/raw/dataframes directory
