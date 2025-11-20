@@ -1415,6 +1415,7 @@ Examples:
   uv run main.py download-vbp --output custom/path/data.csv     # Save to custom directory path
   uv run main.py process-data                                   # Process VBP data (auto-detect mode)
   uv run main.py process-data --mode training                   # Process for ML training/backtesting
+  uv run main.py process-data --mode training --training-file data/raw/dataframes/test_final.csv   # Training mode with explicit file
   uv run main.py process-data --mode live                       # Process real-time data (Sierra Chart)
   uv run main.py process-data --input data.csv --mode auto      # Process custom file with auto-detect
   uv run main.py validate-data                                  # Validate data quality
@@ -1470,6 +1471,14 @@ Examples:
     process_parser.add_argument(
         '--input', '-i',
         help='Input CSV file path (default: auto-detect VBP data in data/raw/dataframes/)'
+    )
+
+    # Add optional --training-file argument for training mode specific datasets
+    # This allows users to explicitly choose the file they want to use when
+    # running the pipeline in training mode without affecting other modes
+    process_parser.add_argument(
+        '--training-file', '-T',
+        help='Training mode only: explicit CSV path (overrides --input when --mode training)'
     )
 
     # Add optional --output/-o argument to specify output file for processed data
@@ -1586,11 +1595,20 @@ Examples:
 
     # Check if user chose the 'process-data' subcommand
     elif args.command == 'process-data':
+        # Determine which input should be used before invoking the pipeline
+        # --training-file is only meaningful when --mode training is selected
+        selected_input = args.input
+
+        if args.mode == 'training' and args.training_file:
+            selected_input = args.training_file
+        elif args.training_file and args.mode != 'training':
+            logger.warning('--training-file is ignored unless --mode training is specified')
+
         # Execute data pipeline processing with optional input/output paths and mode
         # Pass all three optional arguments to the processing function
         # args.input, args.output can be None (triggers auto-detection or console output)
         # args.mode defaults to 'auto' if not specified
-        process_data_pipeline(args.input, args.output, args.mode)
+        process_data_pipeline(selected_input, args.output, args.mode)
 
     # Check if user chose the 'status' subcommand
     elif args.command == 'status':

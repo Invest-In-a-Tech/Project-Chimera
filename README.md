@@ -149,6 +149,9 @@ uv run main.py process-data
 # Process a specific input file
 uv run main.py process-data --input "data/raw/dataframes/your_data.csv"
 
+# Process training mode with an explicit dataset
+uv run main.py process-data --mode training --training-file "data/raw/dataframes/test_final.csv"
+
 # Process and save to a specific output file
 uv run main.py process-data --output "data/processed/processed_data.csv"
 
@@ -212,9 +215,10 @@ uv run main.py download-vbp [--output PATH]
 #### `process-data`
 Process data through the data pipeline with multiple modes:
 ```powershell
-uv run main.py process-data [--input PATH] [--output PATH] [--mode MODE]
+uv run main.py process-data [--input PATH] [--training-file PATH] [--output PATH] [--mode MODE]
 ```
 - `--input, -i`: Input CSV file path (optional, defaults to latest VBP data)
+- `--training-file, -T`: When `--mode training` is active, explicitly choose which CSV to use (overrides `--input`)
 - `--output, -o`: Output CSV file path (optional, displays to console if not specified)
 - `--mode, -m`: Pipeline mode - `training`, `live`, or `auto` (default: `auto`)
 
