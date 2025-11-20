@@ -28,17 +28,26 @@ from typing import Optional
 
 # Third-party imports
 import pandas as pd
+import torch  # PyTorch for ML models and GPU acceleration
 
 # Import VBP data class at module level to avoid pylint warnings
 # This allows us to check for import success early and provide better error messages
 try:
     from src.project_chimera.data_sources.get_vbp_downloader import GetVbpData
     from src.common.data_pipeline.run_data_pipeline import DataPipelineRunner, PipelineMode
+    from src.common.gpu_utils import get_device, move_to_device, get_device_name  # pylint: disable=unused-import
+    from gpu_check import check_gpu_availability
+    from gpu_diag import diagnose_gpu_environment
 except ImportError as import_error:
     # Set to None if import fails - will be handled gracefully in the function
     GetVbpData = None
     DataPipelineRunner = None
     PipelineMode = None
+    get_device = None
+    move_to_device = None
+    get_device_name = None
+    check_gpu_availability = None
+    diagnose_gpu_environment = None
     # Store the import error for later debugging
     _IMPORT_ERROR = import_error
 else:
@@ -50,6 +59,21 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+# Module-level logger for CLI operations
+logger = logging.getLogger(__name__)
+
+# Initialize GPU device for the entire application
+# This is set once at module load and used by all functions
+# Using GPU will significantly speed up ML model inference and training
+# Falls back to CPU automatically if GPU is not available
+DEVICE: torch.device = get_device() if get_device is not None else torch.device('cpu')
+
+# Log the selected device so users know if GPU is being used
+if get_device_name is not None:
+    logger.info("Application device: %s", get_device_name(DEVICE))
+else:
+    logger.info("Application device: %s", DEVICE)
 
 # Module-level logger for CLI operations
 logger = logging.getLogger(__name__)
@@ -1424,6 +1448,8 @@ Examples:
   uv run main.py subscribe-raw --bars 100 --interval tick       # Subscribe with custom settings
   uv run main.py export-features                                # Export features as CSV
   uv run main.py export-features --format parquet               # Export features as Parquet
+  uv run main.py check-gpu                                      # Check GPU/CUDA availability
+  uv run main.py diagnose-gpu                                   # Comprehensive GPU diagnostics
   uv run main.py status                                         # Show project status
         """
     )
@@ -1578,6 +1604,25 @@ Examples:
         help='Output format: csv, parquet, or hdf5 (default: csv)'
     )
 
+    # Configure the GPU check command (no additional arguments needed)
+    # add_parser creates a simple subcommand for checking GPU availability
+    # This command verifies PyTorch CUDA support and GPU functionality
+    # No arguments needed - it just runs the diagnostic check
+    subparsers.add_parser(
+        'check-gpu',
+        help='Check GPU/CUDA availability and PyTorch configuration'
+    )
+
+    # Configure the GPU diagnostics command (no additional arguments needed)
+    # add_parser creates a simple subcommand for verbose GPU diagnostics
+    # This command provides comprehensive PyTorch/CUDA environment information
+    # Useful for troubleshooting driver/build mismatches and configuration issues
+    # No arguments needed - it just runs the full diagnostic workflow
+    subparsers.add_parser(
+        'diagnose-gpu',
+        help='Run comprehensive GPU/CUDA diagnostics for troubleshooting'
+    )
+
     # Parse command line arguments
     # parse_args() processes sys.argv and returns a Namespace object
     # The Namespace contains attributes for each argument (command, output, input, mode)
@@ -1634,6 +1679,41 @@ Examples:
         # args.input and args.output can be None (triggers auto-detection)
         # args.format specifies the output file format (csv, parquet, hdf5)
         export_features(args.input, args.output, args.format)
+
+    # Check if user chose the 'check-gpu' subcommand
+    elif args.command == 'check-gpu':
+        # Verify that the GPU check function was imported successfully
+        # check_gpu_availability is set to None if import fails at module level
+        if check_gpu_availability is None:
+            # Log error message to inform user about missing dependencies
+            logger.error("Cannot import GPU check function")
+            logger.error("Make sure PyTorch is installed: uv pip install torch")
+            # Log the specific import error if available for debugging
+            if _IMPORT_ERROR:
+                logger.error("Import error: %s", _IMPORT_ERROR)
+            # Exit with error code 1 to indicate failure to calling process
+            sys.exit(1)
+        # Execute the GPU availability check
+        # This runs the comprehensive GPU diagnostic from gpu_check.py
+        check_gpu_availability()
+
+    # Check if user chose the 'diagnose-gpu' subcommand
+    elif args.command == 'diagnose-gpu':
+        # Verify that the GPU diagnostics function was imported successfully
+        # diagnose_gpu_environment is set to None if import fails at module level
+        if diagnose_gpu_environment is None:
+            # Log error message to inform user about missing dependencies
+            logger.error("Cannot import GPU diagnostics function")
+            logger.error("Make sure PyTorch is installed: uv pip install torch")
+            # Log the specific import error if available for debugging
+            if _IMPORT_ERROR:
+                logger.error("Import error: %s", _IMPORT_ERROR)
+            # Exit with error code 1 to indicate failure to calling process
+            sys.exit(1)
+        # Execute the comprehensive GPU diagnostics
+        # This runs the verbose diagnostic workflow from gpu_diag.py
+        # Provides detailed PyTorch/CUDA environment information for troubleshooting
+        diagnose_gpu_environment()
 
     else:
         # No command provided - show help information
