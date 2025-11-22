@@ -38,9 +38,9 @@
 ## Project Structure
 
 ```
-Project-Chimera/
+ES-Microstructure-Research/
 ├── src/
-│   ├── project_chimera/          # Main research modules
+│   ├── es_microstructure_research/          # Main research modules
 │   │   ├── data_sources/         # Data extraction & preprocessing
 │   │   └── features/             # Feature engineering (planned)
 │   └── sc_py_bridge/             # Sierra Chart integration

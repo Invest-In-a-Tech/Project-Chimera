@@ -2,7 +2,7 @@
 DataFrame Processor Module for Financial Market Data.
 
 This module provides utilities for processing financial market data stored in CSV format,
-serving as a foundational component in the Project Chimera trading system's data pipeline.
+serving as a foundational component in the ES Microstructure Research trading system's data pipeline.
 It handles the complete workflow of data loading, validation, cleaning, transformation,
 and preparation for downstream analysis and model training.
 

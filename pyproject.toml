@@ -1,5 +1,5 @@
 [project]
-name = "project-chimera"
+name = "es-microstructure-research"
 version = "0.1.0"
 description = "ES Futures microstructure pattern discovery using ML/AI — a research pipeline for finding statistical trading edges through Volume by Price analysis"
 readme = "README.md"
@@ -11,4 +11,8 @@ dependencies = [
     "plotly>=6.3.0",
     "scipy>=1.16.2",
     "seaborn>=0.13.2",
+    "trade29-scpy",
 ]
+
+[tool.uv.sources]
+trade29-scpy = { path = "trade29_scpy-1.0.2.tar.gz" }

@@ -14,7 +14,7 @@ Both components must be installed for the bridge to function properly.
 
 - **Windows**: 10/11 recommended
 - **Sierra Chart**: Version 2626 or higher
-- **Python**: 3.10+ (Project Chimera uses 3.13+)
+- **Python**: 3.10+ (ES Microstructure Research uses 3.13+)
 - **Data Feed**: Active market data connection in Sierra Chart
 
 ## Installation Process
@@ -25,7 +25,7 @@ The Python library is included in the project as `trade29_scpy-1.0.2.tar.gz`.
 
 ```powershell
 # Navigate to project root
-cd "d:\Workbooks\PRISM\Systems\Project Chimera"
+cd "d:\Workbooks\PRISM\Systems\ES Microstructure Research"
 
 # Install the bridge library
 pip install trade29_scpy-1.0.2.tar.gz
@@ -92,7 +92,7 @@ except Exception as e:
 ### VBP Data Test
 ```python
 # Test VBP data extraction
-from src.project_chimera.data_sources.get_vbp_downloader import GetVbpData
+from src.es_microstructure_research.data_sources.get_vbp_downloader import GetVbpData
 
 try:
     vbp_fetcher = GetVbpData(historical_bars=10)  # Small test
@@ -159,7 +159,7 @@ Sierra Chart Data → Custom DLL → Python Library → Your Code
 
 ## Version Compatibility
 
-| Project Chimera | trade29-scpy | Sierra Chart | Python |
+| ES Microstructure Research | trade29-scpy | Sierra Chart | Python |
 |-----------------|--------------|--------------|--------|
 | Current         | 1.0.2        | 2626+        | 3.10+  |
 
@@ -180,4 +180,4 @@ After successful installation:
 
 ---
 
-*This bridge enables the core data infrastructure for Project Chimera's trading research pipeline. Proper installation is essential for all VBP analysis capabilities.*
+*This bridge enables the core data infrastructure for ES Microstructure Research's trading research pipeline. Proper installation is essential for all VBP analysis capabilities.*

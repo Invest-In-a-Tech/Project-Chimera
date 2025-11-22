@@ -1,7 +1,7 @@
 # Live Mode Implementation Summary
 
 ## Overview
-Implemented complete real-time data streaming functionality for Project Chimera, enabling live market data processing from Sierra Chart. This feature transforms the pipeline from historical-only processing to a production-ready system capable of real-time trading operations.
+Implemented complete real-time data streaming functionality for ES Microstructure Research, enabling live market data processing from Sierra Chart. This feature transforms the pipeline from historical-only processing to a production-ready system capable of real-time trading operations.
 
 ## Implementation Date
 October 20, 2025

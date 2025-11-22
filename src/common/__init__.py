@@ -1,1 +1,1 @@
-"""Common utilities and shared modules for Project Chimera."""
+"""Common utilities and shared modules for ES Microstructure Research."""

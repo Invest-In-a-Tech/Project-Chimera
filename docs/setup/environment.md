@@ -23,7 +23,7 @@ The `trade29-scpy` bridge consists of two components that must be installed:
 #### A. Install the Python Library
 ```powershell
 # Navigate to the project directory
-cd Project-Chimera
+cd ES-Microstructure-Research
 
 # Install the bridge from the included tarball
 pip install trade29_scpy-1.0.2.tar.gz
@@ -55,7 +55,7 @@ pip install uv
 
 # Clone and setup project
 git clone <repo-url>
-cd Project-Chimera
+cd ES-Microstructure-Research
 
 # Install all dependencies including the bridge
 uv sync
@@ -65,7 +65,7 @@ uv sync
 ```powershell
 # Clone project
 git clone <repo-url>
-cd Project-Chimera
+cd ES-Microstructure-Research
 
 # Install bridge first
 pip install trade29_scpy-1.0.2.tar.gz
@@ -78,7 +78,7 @@ pip install -r requirements.txt
 
 Test your setup by running the VBP data extractor:
 ```powershell
-uv run src\project_chimera\data_sources\get_vbp_downloader.py
+uv run src\es_microstructure_research\data_sources\get_vbp_downloader.py
 ```
 
 Expected output: CSV file created in `data/raw/dataframes/`

@@ -8,7 +8,7 @@
 - Method: Implement GetVbpData class with Sierra Chart bridge integration, test data extraction and processing
 
 ## Run
-- Code/Notebook: `src/project_chimera/data_sources/get_vbp_downloader.py`
+- Code/Notebook: `src/es_microstructure_research/data_sources/get_vbp_downloader.py`
 - Params:
   - historical_bars: 1,000,000 (default)
   - include_volume_by_price: True
@@ -54,7 +54,7 @@
 
 ## Architecture Decision
 Current implementation has VBP classes in two locations:
-1. `src/project_chimera/data_sources/get_vbp_downloader.py` (downloader script)
+1. `src/es_microstructure_research/data_sources/get_vbp_downloader.py` (downloader script)
 2. `src/sc_py_bridge/get_vbp_chart_data.py` (reusable class)
 
 **Decision**: Consolidate into single `sc_py_bridge` implementation for consistency.

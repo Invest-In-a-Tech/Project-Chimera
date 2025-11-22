@@ -2,7 +2,7 @@
 Data Pipeline Runner Module.
 
 This module provides the main pipeline orchestration for processing financial market data
-within the Project Chimera trading system. It handles both live data streams and file-based
+within the ES Microstructure Research trading system. It handles both live data streams and file-based
 data processing workflows, serving as the central coordinator for data flow from sources
 through processing to analysis-ready format.
 

@@ -7,7 +7,7 @@ The data sources module provides interfaces for extracting and processing Volume
 ## Architecture
 
 ```
-project_chimera.data_sources/
+es_microstructure_research.data_sources/
 ├── get_vbp_downloader.py     # Historical VBP data extraction
 └── __init__.py
 
@@ -20,7 +20,7 @@ sc_py_bridge/
 
 ### `GetVbpData` (Historical Data)
 
-**Location**: `src/project_chimera/data_sources/get_vbp_downloader.py`
+**Location**: `src/es_microstructure_research/data_sources/get_vbp_downloader.py`
 
 Primary class for extracting historical Volume by Price data from Sierra Chart.
 
@@ -100,7 +100,7 @@ Processes raw chart data into analysis-friendly format.
 ### Basic Historical Data Extraction
 
 ```python
-from project_chimera.data_sources.get_vbp_downloader import GetVbpData
+from es_microstructure_research.data_sources.get_vbp_downloader import GetVbpData
 
 # Initialize with default settings
 vbp_fetcher = GetVbpData()
@@ -173,7 +173,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 ### Consolidation Notes
 Currently there are duplicate `GetVbpData` classes in:
-- `src/project_chimera/data_sources/get_vbp_downloader.py`
+- `src/es_microstructure_research/data_sources/get_vbp_downloader.py`
 - `src/sc_py_bridge/get_vbp_chart_data.py`
 
 **Planned**: Consolidate into single implementation in `sc_py_bridge` module.

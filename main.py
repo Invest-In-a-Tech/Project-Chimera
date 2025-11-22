@@ -5,10 +5,10 @@
 # context for understanding the research pipeline. The alternative (splitting into
 # multiple modules) would reduce code cohesion for a CLI entry point.
 """
-Project Chimera CLI - Command Line Interface for VBP Data Operations
+ES Microstructure Research CLI - Command Line Interface for VBP Data Operations
 
 This module provides a simple command-line interface for common operations
-in the Project Chimera research pipeline, including data extraction and
+in the ES Microstructure Research research pipeline, including data extraction and
 basic analysis ta    process_parser.add_argument(
         '--input', '-i',
         help='Input CSV file path (default: auto-detect VBP data in data/raw/dataframes/)'
@@ -33,7 +33,7 @@ import torch  # PyTorch for ML models and GPU acceleration
 # Import VBP data class at module level to avoid pylint warnings
 # This allows us to check for import success early and provide better error messages
 try:
-    from src.project_chimera.data_sources.get_vbp_downloader import GetVbpData
+    from src.es_microstructure_research.data_sources.get_vbp_downloader import GetVbpData
     from src.common.data_pipeline.run_data_pipeline import DataPipelineRunner, PipelineMode
     from src.common.gpu_utils import get_device, move_to_device, get_device_name  # pylint: disable=unused-import
     from gpu_check import check_gpu_availability
@@ -871,7 +871,7 @@ def show_project_status() -> None:
 
     Example:
         >>> show_project_status()
-        Project Chimera - Trading Edge Discovery Research
+        ES Microstructure Research - Trading Edge Discovery Research
         ==================================================
         Found 2 data files:
            - volume_by_price_data.csv (15.3 MB)
@@ -879,7 +879,7 @@ def show_project_status() -> None:
     """
     # Print project header with consistent formatting
     # This provides a clear visual separation and project identification
-    print("Project Chimera - Trading Edge Discovery Research")
+    print("ES Microstructure Research - Trading Edge Discovery Research")
     # Print separator line using repeated '=' character for visual structure
     # 50 characters provides good balance for typical terminal widths
     print("=" * 50)
@@ -1399,7 +1399,7 @@ def export_features(
 
 def main():
     """
-    Main CLI entry point for Project Chimera research pipeline.
+    Main CLI entry point for ES Microstructure Research research pipeline.
 
     This function sets up the command-line interface with subcommands for:
     - VBP data extraction from Sierra Chart
@@ -1427,7 +1427,7 @@ def main():
     # This is the root parser that handles the base command and --help
     # formatter_class=RawDescriptionHelpFormatter preserves formatting in epilog
     parser = argparse.ArgumentParser(
-        description="Project Chimera - Trading Edge Discovery Research Pipeline",
+        description="ES Microstructure Research - Trading Edge Discovery Research Pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         # epilog provides usage examples that appear after argument descriptions
         # These examples help users understand common command patterns

@@ -1,4 +1,4 @@
-# Project Chimera — The Pursuit of Statistical Edge
+# ES Microstructure Research — The Pursuit of Statistical Edge
 
 *"In the pursuit of excellence, there is no finish line."*
 —Roy Williams
@@ -21,7 +21,7 @@ I've also learned I was asking the wrong questions (a skill I learned while stud
 1) I can build and evaluate AI/ML tools.
 2) I understand market mechanics and microstructure.
 
-Project Chimera combines these edges to find patterns worth trading. It starts **not** as a fully automated system (and may never be). It's a research pipeline where **human + AI** collaborate to surface and test edges.
+ES Microstructure Research combines these edges to find patterns worth trading. It starts **not** as a fully automated system (and may never be). It's a research pipeline where **human + AI** collaborate to surface and test edges.
 
 ## What I'm Bringing
 - 5+ years trading U.S. equities/futures
@@ -58,7 +58,7 @@ Discover repeatable, high-probability setups in ES Futures by combining:
 
 ### Core Components
 
-#### 1. Data Sources (`src/project_chimera/data_sources/`)
+#### 1. Data Sources (`src/es_microstructure_research/data_sources/`)
 - `get_vbp_downloader.py`: Historical VBP data extraction and CSV export
 - Fetches OHLCV data + Volume by Price profiles
 - Includes relative volume (RVOL) and large trade indicators
@@ -74,7 +74,7 @@ Discover repeatable, high-probability setups in ES Futures by combining:
 - Handles both live data streams and file-based processing workflows
 - Provides structured logging and error handling for robust pipeline execution
 
-#### 4. Feature Engineering (`src/project_chimera/features/`)
+#### 4. Feature Engineering (`src/es_microstructure_research/features/`)
 - **Status**: Ready for implementation
 - **Planned**: VBP profile analysis, auction behavior features, volume distribution metrics
 
@@ -110,7 +110,7 @@ The project requires the `trade29-scpy` bridge for data extraction:
 ```powershell
 # Clone the repository first
 git clone <your-repo-url>
-cd Project-Chimera
+cd ES-Microstructure-Research
 
 # Install the Sierra Chart bridge
 pip install trade29_scpy-1.0.2.tar.gz
@@ -136,7 +136,7 @@ pip install -r requirements.txt
 uv run main.py download-vbp
 
 # Option 2: Run the VBP data downloader directly
-uv run src\project_chimera\data_sources\get_vbp_downloader.py
+uv run src\es_microstructure_research\data_sources\get_vbp_downloader.py
 
 # Data saved to: data/raw/dataframes/volume_by_price_data.csv
 ```
@@ -200,7 +200,7 @@ This will display data shape, columns, date range, and preview the first 5 rows.
 
 ## CLI Commands Reference
 
-Project Chimera provides a comprehensive command-line interface for common operations:
+ES Microstructure Research provides a comprehensive command-line interface for common operations:
 
 ### Available Commands
 
@@ -401,9 +401,9 @@ For complete live mode documentation with architecture diagrams and examples, se
 ## Project Structure
 
 ```
-Project-Chimera/
+ES-Microstructure-Research/
 ├── src/
-│   ├── project_chimera/          # Main research modules
+│   ├── es_microstructure_research/          # Main research modules
 │   │   ├── data_sources/         # Data extraction & preprocessing
 │   │   └── features/             # Feature engineering (planned)
 │   ├── common/                   # Shared utilities
@@ -452,7 +452,7 @@ ERROR - Cannot import DataPipelineRunner class
 ```
 
 **Solutions:**
-1. Ensure you're in the correct directory: `cd Project-Chimera`
+1. Ensure you're in the correct directory: `cd ES-Microstructure-Research`
 2. Install dependencies: `uv sync`
 3. Verify Python path includes src directory
 
